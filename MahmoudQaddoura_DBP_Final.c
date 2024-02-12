@@ -101,7 +101,7 @@ typedef struct PhoneNode {
 } PhoneNode;
 
 //generic CRUD operations and thread function prototypes
-void createRecord(void **head, int entityType);
+void createRecord(void **head, int entityType, void *newData);
 void *readRecord(void* head, int entityType);
 void updateRecord(void *head, int entityType);
 void deleteRecord(void **head, int entityType);
