@@ -101,7 +101,7 @@ typedef struct PhoneNode {
 } PhoneNode;
 
 //generic CRUD operations and thread function prototypes
-void createRecord(void **head, int entityType, void *newData);
+void createRecord(void **head, int entityType);
 void *readRecord(void* head, int entityType);
 void updateRecord(void *head, int entityType);
 void deleteRecord(void **head, int entityType);
@@ -129,12 +129,14 @@ const char* logFilePath = "operation_log.txt";
 
 //CRUD functions operations implementation with mutex Lock and Unlock to handle concurruncy
 //create
-void createRecord(void **head, int entityType, void *newData) {
+void createRecord(void **head, int entityType) {
+    pthread_mutex_lock(&entityMutexes[entityType - 1]);
     switch (entityType) {
         case ENTITY_BRANCH: {
             BranchNode *newNode = (BranchNode *)malloc(sizeof(BranchNode));
             if (newNode == NULL) {
                 perror("Failed to allocate memory for new BranchNode");
+                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
                 return;
             }
             memset(newNode, 0, sizeof(BranchNode));
@@ -313,11 +315,14 @@ void createRecord(void **head, int entityType, void *newData) {
         default:
             printf("Invalid entity type.\n");
     }
+        pthread_mutex_unlock(&entityMutexes[entityType - 1]);
+
 }
 
 
 //read
 void *readRecord(void *head, int entityType) {
+    pthread_mutex_lock(&entityMutexes[entityType - 1]);
     switch (entityType) {
         case ENTITY_BRANCH: {
             BranchNode *current = (BranchNode *)head;
@@ -350,11 +355,13 @@ void *readRecord(void *head, int entityType) {
         default: 
             return NULL;
     }
+        pthread_mutex_unlock(&entityMutexes[entityType - 1]);
+
 }
 
 //update
 void updateRecord(void *head, int entityType) {
-
+    pthread_mutex_lock(&entityMutexes[entityType - 1]);
     switch (entityType) {
         case ENTITY_BRANCH: {
             int branchID;
@@ -532,11 +539,13 @@ void updateRecord(void *head, int entityType) {
             break;
         }
     }
+    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
 }
 
 
 //delete
 void deleteRecord(void **head, int entityType) {
+    pthread_mutex_lock(&entityMutexes[entityType - 1]);
     switch (entityType) {
         case ENTITY_BRANCH: {
             BranchNode *temp = *(BranchNode **)head;
@@ -595,14 +604,8 @@ void deleteRecord(void **head, int entityType) {
             break;
         }
     }
+    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
 }
-
-
-//struct used in the CTRUD function's argument
-typedef struct {
-   void **head;
-   int entityType;
-} ThreadArgs;
 
 //2 level menus for user input
 void displayEntityMenu() {
@@ -742,37 +745,92 @@ void logOperation(const char* operation) {
     pthread_mutex_unlock(&fileMutex);
 }
 
+typedef struct ThreadArgs {
+    pthread_mutex_t *mutexes;
+    int entityType;
+    int operationType;
+    void **heads; // Array of pointers to the head of each linked list
+} ThreadArgs;
+
+
+void* userInteractionThread(void* arg) {
+    ThreadArgs *args = (ThreadArgs*) arg;
+
+    // Lock the mutex for the specific entity type to ensure thread-safe access
+    pthread_mutex_lock(&args->mutexes[args->entityType - 1]); // Adjusting index for 0-based array
+    void **head = &args->heads[args->entityType - 1];
+
+    printf("Thread handling entity type %d and operation %d\n", args->entityType, args->operationType);
+
+    switch (args->operationType) {
+        case 1:
+            createRecord(NULL, args->entityType, NULL);
+            break;
+        case 2:
+            readRecord(NULL, args->entityType); // This simplification assumes readRecord can handle NULL
+            break;
+        case 3:
+            updateRecord(NULL, args->entityType);
+            break;
+        case 4:
+            deleteRecord(NULL, args->entityType);
+            break;
+        default:
+            printf("Invalid operation. No action taken.\n");
+            break;
+    }
+
+    // Unlock the mutex after the operation is complete
+    pthread_mutex_unlock(&args->mutexes[args->entityType - 1]);
+
+    pthread_exit(NULL);
+}
+
+
 int main() {
-    pthread_mutex_init(&fileMutex, NULL);
-
-    FILE *logFile = fopen(logFilePath, "a");
-    if (!logFile) {
-        perror("Failed to open log file");
-        return 1;
+    pthread_mutex_t mutexes[ENTITY_COUNT];
+    for (int i = 0; i < ENTITY_COUNT; i++) {
+        pthread_mutex_init(&mutexes[i], NULL);
     }
-    fclose(logFile);
+    
+    void *heads[ENTITY_COUNT] = {&branchHead, &roomHead, &customerHead, &cleaningCrewHead, &bookingHead, &employeeHead, &phoneHead};
 
-    ThreadArgs threadArgs;
+    while (1) {
+        int entityChoice = 0;
+        int operationChoice = 0;
 
-    pthread_t threadId;
-    if (pthread_create(&threadId, NULL, threadFunction, (void*)&threadArgs) != 0) {
-        perror("Failed to create thread");
-        pthread_mutex_destroy(&fileMutex);
-        return 1;
+        displayEntityMenu();
+        printf("Enter your choice (or 8 to exit): ");
+        scanf("%d", &entityChoice);
+        if (entityChoice == 8) break; // Exit program
+
+        displayCRUDMenu();
+        printf("Enter your choice (or 5 to go back): ");
+        scanf("%d", &operationChoice);
+        if (operationChoice == 5) continue; // Go back to the entity selection
+
+        ThreadArgs threadArgs;
+        threadArgs.mutexes = mutexes;
+        threadArgs.entityType = entityChoice;
+        threadArgs.operationType = operationChoice;
+        threadArgs.heads = heads;
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, userInteractionThread, (void*)&threadArgs);
+        pthread_join(tid, NULL); // Wait for the thread to complete its operation
     }
 
-    pthread_join(threadId, NULL);
-
-    pthread_mutex_destroy(&fileMutex);
-
-    void freeBranchLinkedList(BranchNode *head);
-    void freeRoomLinkedList(RoomNode *head);
-    void freeCustomerLinkedList(CustomerNode *head);
-    void freeCleaningCrewLinkedList(CleaningCrewNode *head);
-    void freeBookingLinkedList(BookingNode *head);
-    void freeEmployeeLinkedList(EmployeeNode *head);
-    void freePhoneLinkedList(PhoneNode *head);
-
-
+    // Cleanup
+    for (int i = 0; i < ENTITY_COUNT; i++) {
+        pthread_mutex_destroy(&mutexes[i]);
+    }
+    
+    freeBranchLinkedList(branchHead);
+    freeRoomLinkedList(roomHead);
+    freeCustomerLinkedList(customerHead);
+    freeCleaningCrewLinkedList(cleaningCrewHead);
+    freeBookingLinkedList(bookingHead);
+    freeEmployeeLinkedList(employeeHead);
+    freePhoneLinkedList(phoneHead);
     return 0;
 }
