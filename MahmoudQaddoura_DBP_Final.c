@@ -407,7 +407,7 @@ void updateRecord(void *head, int entityType) {
             }
             break;
         }
-case ENTITY_CUSTOMER: {
+        case ENTITY_CUSTOMER: {
             int customerID;
             printf("Enter Customer ID of the customer to update: ");
             scanf("%d", &customerID);
