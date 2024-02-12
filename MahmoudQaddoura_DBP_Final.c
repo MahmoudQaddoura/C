@@ -651,7 +651,7 @@ void *threadFunction(void *args) {
                 readRecord(threadArgs->head, entityChoice);
                 break;
             case 3:
-                updateRecord(threadArgs->head, entityChoice, NULL);
+                updateRecord(threadArgs->head, entityChoice);
                 break;
             case 4:
                 deleteRecord(threadArgs->head, entityChoice);
