@@ -1,0 +1,526 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+
+#define ENTITY_COUNT 7
+
+//entity structs
+typedef struct {
+    int branchID;
+    char name[50];
+    char phone[20];
+    char address[100];
+    int numberOfRooms;
+} Branch;
+
+typedef struct {
+    int roomID;
+    int number;
+    int floor;
+    int cleaningCrewID;  
+    int branchID;       
+} Room;
+
+typedef struct {
+    int customerID;
+    char SSN[11];
+    char name[50];
+    char dateOfBirth[10];
+    char email[50];
+    int bookingID;  
+    char phone[20];
+} Customer;
+
+typedef struct {
+    int cleaningCrewID;
+    char employees[50];  
+    char status[20];
+    int roomID;    
+} CleaningCrew;
+
+typedef struct {
+    int bookingID;
+    char date[10];
+    char time[10];
+    char customerSSN[11]; 
+    int registrarID;     
+    int roomNumber;     
+} Booking;
+
+typedef struct {
+    int employeeID;
+    char name[50];
+    char password[20];
+    char email[50];
+    double salary;
+    int branchID;
+    char position[20];
+} Employee;
+
+typedef struct {
+    int phoneID;
+    char number[20];
+    char customerSSN[11];
+} Phone;
+
+// Linked list node structures
+typedef struct BranchNode {
+   Branch data;
+   struct BranchNode *next;
+} BranchNode;
+
+typedef struct RoomNode {
+   Room data;
+   struct RoomNode *next;
+} RoomNode;
+
+typedef struct CustomerNode {
+   Customer data;
+   struct CustomerNode *next;
+} CustomerNode;
+
+typedef struct CleaningCrewNode {
+   CleaningCrew data;
+   struct CleaningCrewNode *next;
+} CleaningCrewNode;
+
+typedef struct BookingNode {
+   Booking data;
+   struct BookingNode *next;
+} BookingNode;
+
+typedef struct EmployeeNode {
+   Employee data;
+   struct EmployeeNode *next;
+} EmployeeNode;
+
+typedef struct PhoneNode {
+   Phone data;
+   struct PhoneNode *next;
+} PhoneNode;
+
+//generic CRUD operations and thread function prototypes
+void createRecord(void **head, int entityType, void *newData);
+void *readRecord(void* head, int entityType);
+void updateRecord(void *head, int entityType, void *newData);
+void deleteRecord(void **head, int entityType);
+void* threadFunction(void* args);
+
+//enums that point to entity type to be used in generic CRUD functions
+typedef enum {
+    ENTITY_BRANCH,
+    ENTITY_ROOM,
+    ENTITY_CUSTOMER,
+    ENTITY_CLEANING_CREW,
+    ENTITY_BOOKING,
+    ENTITY_EMPLOYEE,
+    ENTITY_PHONE
+} EntityType;
+
+//globaly declared array of mutexes
+pthread_mutex_t entityMutexes[ENTITY_COUNT];
+
+//mutex for db log file
+pthread_mutex_t fileMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Path to the log file
+const char* logFilePath = "operation_log.txt";
+
+//CRUD functions operations implementation with mutex Lock and Unlock to handle concurruncy
+//create
+void createRecord(void **head, int entityType, void *newData) {
+    switch (entityType) {
+        case ENTITY_BRANCH: {
+            BranchNode *newNode = (BranchNode *)malloc(sizeof(BranchNode));
+            newNode->data = *(Branch *)newData;
+            newNode->next = *(BranchNode **)head;
+            *(BranchNode **)head = newNode;
+            break;
+        }
+        case ENTITY_ROOM: {
+            RoomNode *newNode = (RoomNode *)malloc(sizeof(RoomNode));
+            newNode->data = *(Room *)newData;
+            newNode->next = *(RoomNode **)head;
+            *(RoomNode **)head = newNode;
+            break;
+        }
+        case ENTITY_CUSTOMER: {
+            CustomerNode *newNode = (CustomerNode *)malloc(sizeof(CustomerNode));
+            newNode->data = *(Customer *)newData;
+            newNode->next = *(CustomerNode **)head;
+            *(CustomerNode **)head = newNode;
+            break;
+        }
+        case ENTITY_CLEANING_CREW: {
+            CleaningCrewNode *newNode = (CleaningCrewNode *)malloc(sizeof(CleaningCrewNode));
+            newNode->data = *(CleaningCrew *)newData;
+            newNode->next = *(CleaningCrewNode **)head;
+            *(CleaningCrewNode **)head = newNode;
+            break;
+        }
+        case ENTITY_BOOKING: {
+            BookingNode *newNode = (BookingNode *)malloc(sizeof(BookingNode));
+            newNode->data = *(Booking *)newData;
+            newNode->next = *(BookingNode **)head;
+            *(BookingNode **)head = newNode;
+            break;
+        }
+        case ENTITY_EMPLOYEE: {
+            EmployeeNode *newNode = (EmployeeNode *)malloc(sizeof(EmployeeNode));
+            newNode->data = *(Employee *)newData;
+            newNode->next = *(EmployeeNode **)head;
+            *(EmployeeNode **)head = newNode;
+            break;
+        }
+        case ENTITY_PHONE: {
+            PhoneNode *newNode = (PhoneNode *)malloc(sizeof(PhoneNode));
+            newNode->data = *(Phone *)newData;
+            newNode->next = *(PhoneNode **)head;
+            *(PhoneNode **)head = newNode;
+            break;
+        }
+    }
+}
+
+//read
+void *readRecord(void *head, int entityType) {
+    switch (entityType) {
+        case ENTITY_BRANCH: {
+            BranchNode *current = (BranchNode *)head;
+            return current ? &current->data : NULL;
+        }
+        case ENTITY_ROOM: {
+            RoomNode *current = (RoomNode *)head;
+            return current ? &current->data : NULL;
+        }
+        case ENTITY_CUSTOMER: {
+            CustomerNode *current = (CustomerNode *)head;
+            return current ? &current->data : NULL;
+        }
+        case ENTITY_CLEANING_CREW: {
+            CleaningCrewNode *current = (CleaningCrewNode *)head;
+            return current ? &current->data : NULL;
+        }
+        case ENTITY_BOOKING: {
+            BookingNode *current = (BookingNode *)head;
+            return current ? &current->data : NULL;
+        }
+        case ENTITY_EMPLOYEE: {
+            EmployeeNode *current = (EmployeeNode *)head;
+            return current ? &current->data : NULL;
+        }
+        case ENTITY_PHONE: {
+            PhoneNode *current = (PhoneNode *)head;
+            return current ? &current->data : NULL;
+        }
+        default: 
+            return NULL;
+    }
+}
+
+//update
+void updateRecord(void *head, int entityType, void *newData) {
+    switch (entityType) {
+        case ENTITY_BRANCH: {
+            BranchNode *current = (BranchNode *)head;
+            if (current) {
+                current->data = *(Branch *)newData;
+            }
+            break;
+        }
+        case ENTITY_ROOM: {
+            RoomNode *current = (RoomNode *)head;
+            if (current) {
+                current->data = *(Room *)newData;
+            }
+            break;
+        }
+        case ENTITY_CUSTOMER: {
+            CustomerNode *current = (CustomerNode *)head;
+            if (current) {
+                current->data = *(Customer *)newData;
+            }
+            break;
+        }
+        case ENTITY_CLEANING_CREW: {
+            CleaningCrewNode *current = (CleaningCrewNode *)head;
+            if (current) {
+                current->data = *(CleaningCrew *)newData;
+            }
+            break;
+        }
+        case ENTITY_BOOKING: {
+            BookingNode *current = (BookingNode *)head;
+            if (current) {
+                current->data = *(Booking *)newData;
+            }
+            break;
+        }
+        case ENTITY_EMPLOYEE: {
+            EmployeeNode *current = (EmployeeNode *)head;
+            if (current) {
+                current->data = *(Employee *)newData;
+            }
+            break;
+        }
+        case ENTITY_PHONE: {
+            PhoneNode *current = (PhoneNode *)head;
+            if (current) {
+                current->data = *(Phone *)newData;
+            }
+            break;
+        }
+    }
+}
+
+//delete
+void deleteRecord(void **head, int entityType) {
+    switch (entityType) {
+        case ENTITY_BRANCH: {
+            BranchNode *temp = *(BranchNode **)head;
+            if (temp) {
+                *(BranchNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+        case ENTITY_ROOM: {
+            RoomNode *temp = *(RoomNode **)head;
+            if (temp) {
+                *(RoomNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+        case ENTITY_CUSTOMER: {
+            CustomerNode *temp = *(CustomerNode **)head;
+            if (temp) {
+                *(CustomerNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+        case ENTITY_CLEANING_CREW: {
+            CleaningCrewNode *temp = *(CleaningCrewNode **)head;
+            if (temp) {
+                *(CleaningCrewNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+        case ENTITY_BOOKING: {
+            BookingNode *temp = *(BookingNode **)head;
+            if (temp) {
+                *(BookingNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+        case ENTITY_EMPLOYEE: {
+            EmployeeNode *temp = *(EmployeeNode **)head;
+            if (temp) {
+                *(EmployeeNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+        case ENTITY_PHONE: {
+            PhoneNode *temp = *(PhoneNode **)head;
+            if (temp) {
+                *(PhoneNode **)head = temp->next;
+                free(temp);
+            }
+            break;
+        }
+    }
+}
+
+
+//struct used in the CTRUD function's argument
+typedef struct {
+   void **head;
+   int entityType;
+} ThreadArgs;
+
+//2 level menus for user input
+void displayEntityMenu() {
+    printf("Select an entity:\n");
+    printf("1. Branch\n");
+    printf("2. Room\n");
+    printf("3. Customer\n");
+    printf("4. Cleaning Crew\n");
+    printf("5. Booking\n");
+    printf("6. Employee\n");
+    printf("7. Phone\n");
+    printf("8. Back\n");
+}
+
+void displayCRUDMenu() {
+    printf("Select an operation:\n");
+    printf("1. Create\n");
+    printf("2. Read\n");
+    printf("3. Update\n");
+    printf("4. Delete\n");
+    printf("5. Back\n");
+}
+
+//thread function that handles concurrent access to the program using mutexes
+void* threadFunction(void* args) {
+    ThreadArgs *threadArgs = (ThreadArgs *)args;
+    int entityChoice, crudChoice;
+    char inputBuffer[256];
+
+    for (int i = 0; i < ENTITY_COUNT; ++i) {
+        pthread_mutex_init(&entityMutexes[i], NULL);
+    }
+
+    while (1) {
+        displayEntityMenu();
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        sscanf(inputBuffer, "%d", &entityChoice);
+        if (entityChoice == 9) break;
+
+        displayCRUDMenu();
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        sscanf(inputBuffer, "%d", &crudChoice);
+        if (crudChoice == 9) continue;
+
+        pthread_mutex_lock(&entityMutexes[entityChoice]);
+
+        switch (crudChoice) {
+            case 1:
+                createRecord(threadArgs->head, entityChoice);
+                break;
+            case 2:
+                readRecord(*(threadArgs->head), entityChoice);
+                break;
+            case 3:
+                updateRecord(*(threadArgs->head), entityChoice);
+                break;
+            case 4:
+                deleteRecord(threadArgs->head, entityChoice);
+                break;
+        }
+
+        pthread_mutex_unlock(&entityMutexes[entityChoice]);
+    }
+
+    for (int i = 0; i < ENTITY_COUNT; ++i) {
+        pthread_mutex_destroy(&entityMutexes[i]);
+    }
+
+    return NULL;
+}
+
+//clean up functions for each entity for exit
+void freeBranchLinkedList(BranchNode *head) {
+    BranchNode *current = head;
+    while (current != NULL) {
+        BranchNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+void freeRoomLinkedList(RoomNode *head) {
+    RoomNode *current = head;
+    while (current != NULL) {
+        RoomNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+void freeCustomerLinkedList(CustomerNode *head) {
+    CustomerNode *current = head;
+    while (current != NULL) {
+        CustomerNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+void freeCleaningCrewLinkedList(CleaningCrewNode *head) {
+    CleaningCrewNode *current = head;
+    while (current != NULL) {
+        CleaningCrewNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+void freeBookingLinkedList(BookingNode *head) {
+    BookingNode *current = head;
+    while (current != NULL) {
+        BookingNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+void freeEmployeeLinkedList(EmployeeNode *head) {
+    EmployeeNode *current = head;
+    while (current != NULL) {
+        EmployeeNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+void freePhoneLinkedList(PhoneNode *head) {
+    PhoneNode *current = head;
+    while (current != NULL) {
+        PhoneNode *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+//function to log operations to a file
+void logOperation(const char* operation) {
+    pthread_mutex_lock(&fileMutex);
+    FILE *logFile = fopen(logFilePath, "a");
+    if (logFile) {
+        fprintf(logFile, "%s\n", operation);
+        fclose(logFile);
+    } else {
+        perror("Failed to open log file");
+    }
+    pthread_mutex_unlock(&fileMutex);
+}
+
+int main() {
+    pthread_mutex_init(&fileMutex, NULL);
+
+    FILE *logFile = fopen(logFilePath, "a");
+    if (!logFile) {
+        perror("Failed to open log file");
+        return 1;
+    }
+    fclose(logFile);
+
+    ThreadArgs threadArgs;
+
+    pthread_t threadId;
+    if (pthread_create(&threadId, NULL, threadFunction, (void*)&threadArgs) != 0) {
+        perror("Failed to create thread");
+        pthread_mutex_destroy(&fileMutex);
+        return 1;
+    }
+
+    pthread_join(threadId, NULL);
+
+    pthread_mutex_destroy(&fileMutex);
+
+    void freeBranchLinkedList(BranchNode *head);
+    void freeRoomLinkedList(RoomNode *head);
+    void freeCustomerLinkedList(CustomerNode *head);
+    void freeCleaningCrewLinkedList(CleaningCrewNode *head);
+    void freeBookingLinkedList(BookingNode *head);
+    void freeEmployeeLinkedList(EmployeeNode *head);
+    void freePhoneLinkedList(PhoneNode *head);
+
+
+    return 0;
+}
