@@ -110,7 +110,7 @@ PhoneNode *phoneHead = NULL;
 
 //generic CRUD operations and thread function prototypes
 void createRecord(void **head, int entityType);
-void *readRecord(void* head, int entityType);
+void readRecord(void* head, int entityType);
 void updateRecord(void **head, int entityType, int searchID);
 void deleteRecord(void **head, int entityType, int searchID);
 void* threadFunction(void* args);
@@ -315,10 +315,6 @@ void createRecord(void **head, int entityType) {
     }
 
     pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-}
-    }
-        pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-
 }
 
 //Display functions to show readRecord results to the user
@@ -582,46 +578,50 @@ void updateRecord(void **head, int entityType, int searchID) {
 
 //delete
 void deleteRecord(void **head, int entityType, int searchID) {
-    if (!head || !*head) return; // If the list is empty or head is NULL, do nothing
+    if (!head || !*head) return; // Check if the list is empty or the head is NULL.
 
     pthread_mutex_lock(&entityMutexes[entityType - 1]);
 
-    while (*head) {
-        int found = 0;
+    // Use temporary pointers for traversal and deletion.
+    void **curr = head;
+    while (*curr) {
+        int idMatch = 0; // Flag to indicate if the ID matches.
+        // Cast the current node based on the entity type and compare IDs.
         switch (entityType) {
             case ENTITY_BRANCH: {
-                BranchNode **current = (BranchNode **)head;
-                if ((*current)->data.branchID == searchID) found = 1;
+                BranchNode *node = (BranchNode *)*curr;
+                idMatch = (node->data.branchID == searchID);
                 break;
             }
             case ENTITY_ROOM: {
-                RoomNode **current = (RoomNode **)head;
-                if ((*current)->data.roomID == searchID) found = 1;
+                RoomNode *node = (RoomNode *)*curr;
+                idMatch = (node->data.roomID == searchID);
                 break;
             }
+            // Repeat for other entity types...
             case ENTITY_CUSTOMER: {
-                CustomerNode **current = (CustomerNode **)head;
-                if ((*current)->data.customerID == searchID) found = 1;
+                CustomerNode *node = (CustomerNode *)*curr;
+                idMatch = (node->data.customerID == searchID);
                 break;
             }
             case ENTITY_CLEANING_CREW: {
-                CleaningCrewNode **current = (CleaningCrewNode **)head;
-                if ((*current)->data.cleaningCrewID == searchID) found = 1;
+                CleaningCrewNode *node = (CleaningCrewNode *)*curr;
+                idMatch = (node->data.cleaningCrewID == searchID);
                 break;
             }
             case ENTITY_BOOKING: {
-                BookingNode **current = (BookingNode **)head;
-                if ((*current)->data.bookingID == searchID) found = 1;
+                BookingNode *node = (BookingNode *)*curr;
+                idMatch = (node->data.bookingID == searchID);
                 break;
             }
             case ENTITY_EMPLOYEE: {
-                EmployeeNode **current = (EmployeeNode **)head;
-                if ((*current)->data.employeeID == searchID) found = 1;
+                EmployeeNode *node = (EmployeeNode *)*curr;
+                idMatch = (node->data.employeeID == searchID);
                 break;
             }
             case ENTITY_PHONE: {
-                PhoneNode **current = (PhoneNode **)head;
-                if ((*current)->data.phoneID == searchID) found = 1;
+                PhoneNode *node = (PhoneNode *)*curr;
+                idMatch = (node->data.phoneID == searchID);
                 break;
             }
             default:
@@ -630,18 +630,19 @@ void deleteRecord(void **head, int entityType, int searchID) {
                 return;
         }
 
-        if (found) {
-            void *temp = *head;
-            *head = (*(void **)temp)->next; // Correctly updating the pointer
-            free(temp); // Free the memory of the deleted node
-            break;
+        if (idMatch) {
+            void *temp = *curr; // Store the node to be deleted.
+            *curr = *((void **)*curr); // Update the link to bypass the deleted node.
+            free(temp); // Free the memory of the deleted node.
+            break; // Exit the loop after deletion.
         } else {
-            head = &(*(void **)head)->next; // Move to the next node if not found
+            curr = (void **)*curr; // Move to the next node.
         }
     }
 
     pthread_mutex_unlock(&entityMutexes[entityType - 1]);
 }
+
 
 //2 level menus for user input
 void displayEntityMenu() {
@@ -668,6 +669,7 @@ void displayCRUDMenu() {
 typedef struct ThreadArgs {
     pthread_mutex_t *mutexes;
     int entityType;
+    int operationType;
     void **heads;
 } ThreadArgs;
 
@@ -831,7 +833,7 @@ void* userInteractionThread(void* arg) {
             case 2: // Read
                 printf("Enter ID to read: ");
                 scanf("%d", &idToActOn);
-                readRecord(selectedHead, selectedEntityType, idToActOn);
+                readRecord(selectedHead, selectedEntityType);                  
                 break;
             case 3: // Update
                 printf("Enter ID to update: ");
