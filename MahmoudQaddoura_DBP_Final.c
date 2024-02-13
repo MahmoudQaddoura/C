@@ -111,8 +111,8 @@ PhoneNode *phoneHead = NULL;
 //generic CRUD operations and thread function prototypes
 void createRecord(void **head, int entityType);
 void *readRecord(void* head, int entityType);
-void updateRecord(void *head, int entityType);
-void deleteRecord(void **head, int entityType);
+void updateRecord(void **head, int entityType, int searchID);
+void deleteRecord(void **head, int entityType, int searchID);
 void* threadFunction(void* args);
 
 //enums that point to entity type to be used in generic CRUD functions
@@ -427,13 +427,10 @@ void readRecord(void *head, int entityType) {
     pthread_mutex_unlock(&entityMutexes[entityType - 1]);
 }
 
-
-
 //update
 void updateRecord(void **head, int entityType, int searchID) {
     pthread_mutex_lock(&entityMutexes[entityType - 1]);
 
-    // Assuming each entity type has a unique ID to search and update for
     switch (entityType) {
         case ENTITY_BRANCH: {
             BranchNode **current = (BranchNode **)head;
@@ -450,7 +447,7 @@ void updateRecord(void **head, int entityType, int searchID) {
                     (*current)->data.address[strcspn((*current)->data.address, "\n")] = 0;
                     printf("Enter number of rooms: ");
                     scanf("%d", &(*current)->data.numberOfRooms);
-            break;
+                    break;
                 }
                 current = &(*current)->next;
             }
@@ -461,15 +458,14 @@ void updateRecord(void **head, int entityType, int searchID) {
             while (*current) {
                 if ((*current)->data.roomID == searchID) {
                     printf("Updating Room ID %d\n", searchID);
-                    printf("Updating room with ID %d\n", roomID);
                     printf("Enter room number: ");
-                    scanf("%d", &current->data.number);
+                    scanf("%d", &(*current)->data.number);
                     printf("Enter floor: ");
-                    scanf("%d", &current->data.floor);
+                    scanf("%d", &(*current)->data.floor);
                     printf("Enter cleaning crew ID: ");
-                    scanf("%d", &current->data.cleaningCrewID);
+                    scanf("%d", &(*current)->data.cleaningCrewID);
                     printf("Enter branch ID: ");
-                    scanf("%d", &current->data.branchID);
+                    scanf("%d", &(*current)->data.branchID);
                     break;
                 }
                 current = &(*current)->next;
@@ -481,19 +477,18 @@ void updateRecord(void **head, int entityType, int searchID) {
             while (*current) {
                 if ((*current)->data.customerID == searchID) {
                     printf("Updating Customer ID %d\n", searchID);
-                    printf("Updating customer with ID %d\n", customerID);
                     printf("Enter customer SSN: ");
-                    scanf("%10s", current->data.SSN);
+                    scanf("%10s", (*current)->data.SSN);
                     printf("Enter customer name: ");
-                    scanf("%49s", current->data.name);
+                    scanf("%49s", (*current)->data.name);
                     printf("Enter date of birth (YYYY-MM-DD): ");
-                    scanf("%9s", current->data.dateOfBirth);
+                    scanf("%9s", (*current)->data.dateOfBirth);
                     printf("Enter email: ");
-                    scanf("%49s", current->data.email);
+                    scanf("%49s", (*current)->data.email);
                     printf("Enter booking ID: ");
-                    scanf("%d", &current->data.bookingID);
+                    scanf("%d", &(*current)->data.bookingID);
                     printf("Enter phone: ");
-                    scanf("%19s", current->data.phone);                    
+                    scanf("%19s", (*current)->data.phone);
                     break;
                 }
                 current = &(*current)->next;
@@ -505,13 +500,12 @@ void updateRecord(void **head, int entityType, int searchID) {
             while (*current) {
                 if ((*current)->data.cleaningCrewID == searchID) {
                     printf("Updating Cleaning Crew ID %d\n", searchID);
-                    printf("Updating cleaning crew with ID %d\n", cleaningCrewID);
                     printf("Enter employees: ");
-                    scanf("%49s", current->data.employees); // Consider using fgets for string with spaces
+                    scanf(" %49[^\n]", (*current)->data.employees);
                     printf("Enter status: ");
-                    scanf("%19s", current->data.status);
+                    scanf(" %19[^\n]", (*current)->data.status);
                     printf("Enter room ID: ");
-                    scanf("%d", &current->data.roomID);                    
+                    scanf("%d", &(*current)->data.roomID);
                     break;
                 }
                 current = &(*current)->next;
@@ -522,18 +516,17 @@ void updateRecord(void **head, int entityType, int searchID) {
             BookingNode **current = (BookingNode **)head;
             while (*current) {
                 if ((*current)->data.bookingID == searchID) {
-                printf("Updating Booking ID %d\n", searchID);
-                printf("Updating booking with ID %d\n", bookingID);
-                printf("Enter date (YYYY-MM-DD): ");
-                scanf("%9s", current->data.date);
-                printf("Enter time (HH:MM): ");
-                scanf("%9s", current->data.time);
-                printf("Enter customer SSN: ");
-                scanf("%10s", current->data.customerSSN);
-                printf("Enter registrar ID: ");
-                scanf("%d", &current->data.registrarID);
-                printf("Enter room number: ");
-                scanf("%d", &current->data.roomNumber);
+                    printf("Updating Booking ID %d\n", searchID);
+                    printf("Enter date (YYYY-MM-DD): ");
+                    scanf("%9s", (*current)->data.date);
+                    printf("Enter time (HH:MM): ");
+                    scanf("%9s", (*current)->data.time);
+                    printf("Enter customer SSN: ");
+                    scanf("%10s", (*current)->data.customerSSN);
+                    printf("Enter registrar ID: ");
+                    scanf("%d", &(*current)->data.registrarID);
+                    printf("Enter room number: ");
+                    scanf("%d", &(*current)->data.roomNumber);
                     break;
                 }
                 current = &(*current)->next;
@@ -544,21 +537,20 @@ void updateRecord(void **head, int entityType, int searchID) {
             EmployeeNode **current = (EmployeeNode **)head;
             while (*current) {
                 if ((*current)->data.employeeID == searchID) {
-                printf("Updating Employee ID %d\n", searchID);
-                printf("Updating employee with ID %d\n", employeeID);
-                printf("Enter name: ");
-                scanf("%49s", current->data.name);
-                printf("Enter password: ");
-                scanf("%19s", current->data.password);
-                printf("Enter email: ");
-                scanf("%49s", current->data.email);
-                printf("Enter salary: ");
-                scanf("%lf", &current->data.salary);
-                printf("Enter branch ID: ");
-                scanf("%d", &current->data.branchID);
-                printf("Enter position: ");
-                scanf("%19s", current->data.position);                    
-                break;
+                    printf("Updating Employee ID %d\n", searchID);
+                    printf("Enter name: ");
+                    scanf("%49s", (*current)->data.name);
+                    printf("Enter password: ");
+                    scanf("%19s", (*current)->data.password);
+                    printf("Enter email: ");
+                    scanf("%49s", (*current)->data.email);
+                    printf("Enter salary: ");
+                    scanf("%lf", &(*current)->data.salary);
+                    printf("Enter branch ID: ");
+                    scanf("%d", &(*current)->data.branchID);
+                    printf("Enter position: ");
+                    scanf("%19s", (*current)->data.position);
+                    break;
                 }
                 current = &(*current)->next;
             }
@@ -569,11 +561,10 @@ void updateRecord(void **head, int entityType, int searchID) {
             while (*current) {
                 if ((*current)->data.phoneID == searchID) {
                     printf("Updating Phone ID %d\n", searchID);
-                    printf("Updating phone record with ID %d\n", phoneID);
                     printf("Enter number: ");
-                    scanf("%19s", current->data.number);
+                    scanf("%19s", (*current)->data.number);
                     printf("Enter customer SSN: ");
-                    scanf("%10s", current->data.customerSSN);
+                    scanf("%10s", (*current)->data.customerSSN);
                     break;
                 }
                 current = &(*current)->next;
@@ -595,67 +586,62 @@ void deleteRecord(void **head, int entityType, int searchID) {
 
     pthread_mutex_lock(&entityMutexes[entityType - 1]);
 
-    void *temp = NULL;
-    void **indirect = head;
-
-    while (*indirect) {
+    while (*head) {
         int found = 0;
         switch (entityType) {
             case ENTITY_BRANCH: {
-                BranchNode *current = *(BranchNode **)indirect;
-                found = (current->data.branchID == searchID);
+                BranchNode **current = (BranchNode **)head;
+                if ((*current)->data.branchID == searchID) found = 1;
                 break;
             }
             case ENTITY_ROOM: {
-                RoomNode *current = *(RoomNode **)indirect;
-                found = (current->data.roomID == searchID);
+                RoomNode **current = (RoomNode **)head;
+                if ((*current)->data.roomID == searchID) found = 1;
                 break;
             }
             case ENTITY_CUSTOMER: {
-                CustomerNode *current = *(CustomerNode **)indirect;
-                found = (current->data.customerID == searchID);
+                CustomerNode **current = (CustomerNode **)head;
+                if ((*current)->data.customerID == searchID) found = 1;
                 break;
             }
             case ENTITY_CLEANING_CREW: {
-                CleaningCrewNode *current = *(CleaningCrewNode **)indirect;
-                found = (current->data.cleaningCrewID == searchID);
+                CleaningCrewNode **current = (CleaningCrewNode **)head;
+                if ((*current)->data.cleaningCrewID == searchID) found = 1;
                 break;
             }
             case ENTITY_BOOKING: {
-                BookingNode *current = *(BookingNode **)indirect;
-                found = (current->data.bookingID == searchID);
+                BookingNode **current = (BookingNode **)head;
+                if ((*current)->data.bookingID == searchID) found = 1;
                 break;
             }
             case ENTITY_EMPLOYEE: {
-                EmployeeNode *current = *(EmployeeNode **)indirect;
-                found = (current->data.employeeID == searchID);
+                EmployeeNode **current = (EmployeeNode **)head;
+                if ((*current)->data.employeeID == searchID) found = 1;
                 break;
             }
             case ENTITY_PHONE: {
-                PhoneNode *current = *(PhoneNode **)indirect;
-                found = (current->data.phoneID == searchID);
+                PhoneNode **current = (PhoneNode **)head;
+                if ((*current)->data.phoneID == searchID) found = 1;
                 break;
             }
             default:
-                printf("Invalid entity type for deletion.\n");
+                printf("Invalid entity type.\n");
                 pthread_mutex_unlock(&entityMutexes[entityType - 1]);
                 return;
         }
 
         if (found) {
-            temp = *indirect;
-            *indirect = (*(void **)temp)->next; // Update the link to bypass the deleted node
+            void *temp = *head;
+            *head = (*(void **)temp)->next; // Correctly updating the pointer
             free(temp); // Free the memory of the deleted node
-            pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-            return; 
+            break;
+        } else {
+            head = &(*(void **)head)->next; // Move to the next node if not found
         }
-        indirect = &(*(void **)temp)->next; // Move to the next node
     }
 
-    pthread_mutex_unlock(&entityMutexes[entityType - 1]); 
+    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
 }
-
-
 
 //2 level menus for user input
 void displayEntityMenu() {
@@ -679,11 +665,18 @@ void displayCRUDMenu() {
     printf("5. Back\n");
 }
 
+typedef struct ThreadArgs {
+    pthread_mutex_t *mutexes;
+    int entityType;
+    void **heads;
+} ThreadArgs;
+
 //thread function that handles concurrent access to the program using mutexes
 void *threadFunction(void *args) {
     ThreadArgs *threadArgs = (ThreadArgs *)args;
     int operationChoice;
     int entityChoice;
+    int searchID; 
 
     while (1) {
         printf("\nChoose operation: 1. Create 2. Read 3. Update 4. Delete 5. Exit\n");
@@ -696,18 +689,25 @@ void *threadFunction(void *args) {
         printf("\nChoose entity type: 1. Branch 2. Room 3. Customer 4. Cleaning Crew 5. Booking 6. Employee 7. Phone\n");
         scanf("%d", &entityChoice);
 
+        entityChoice--;
+
+        if (operationChoice == 3 || operationChoice == 4) { // Update or Delete
+            printf("Enter ID for the operation: ");
+            scanf("%d", &searchID);
+        }
+
         switch (operationChoice) {
-            case 1:
-                createRecord(threadArgs->head, entityChoice, NULL);
+            case 1: // Create
+                createRecord(&(threadArgs->heads[entityChoice]), entityChoice);
                 break;
-            case 2:
-                readRecord(threadArgs->head, entityChoice);
+            case 2: // Read
+                readRecord(threadArgs->heads[entityChoice], entityChoice);
                 break;
-            case 3:
-                updateRecord(threadArgs->head, entityChoice);
+            case 3: // Update
+                updateRecord(&(threadArgs->heads[entityChoice]), entityChoice, searchID);
                 break;
-            case 4:
-                deleteRecord(threadArgs->head, entityChoice);
+            case 4: // Delete
+                deleteRecord(&(threadArgs->heads[entityChoice]), entityChoice, searchID);
                 break;
             default:
                 printf("Invalid operation choice\n");
@@ -717,6 +717,7 @@ void *threadFunction(void *args) {
 
     return NULL;
 }
+
 
 //clean up functions for each entity for exit
 void freeBranchLinkedList(BranchNode *head) {
@@ -794,13 +795,6 @@ void logOperation(const char* operation) {
     }
     pthread_mutex_unlock(&fileMutex);
 }
-
-typedef struct ThreadArgs {
-    pthread_mutex_t *mutexes;
-    int entityType;
-    int operationType;
-    void **heads; // Array of pointers to the head of each linked list
-} ThreadArgs;
 
 //this function handels user interaction with the inner most functionalities of the proram
 void* userInteractionThread(void* arg) {
