@@ -139,7 +139,8 @@ const char* logFilePath = "operation_log.txt";
 //create
 void createRecord(void **head, int entityType) {
     pthread_mutex_lock(&entityMutexes[entityType - 1]);
-     switch (entityType) {
+    int c; // Variable for clearing input buffer
+    switch (entityType) {
         case ENTITY_BRANCH: {
             BranchNode *newNode = (BranchNode *)malloc(sizeof(BranchNode));
             if (newNode == NULL) {
@@ -149,14 +150,25 @@ void createRecord(void **head, int entityType) {
             }
             memset(newNode, 0, sizeof(BranchNode));
 
+            // Numerical input, no buffer clearing needed immediately after
             printf("Enter new branch ID: ");
             scanf("%d", &newNode->data.branchID);
+
+            // Clear buffer before reading strings
+            while ((c = getchar()) != '\n' && c != EOF) { }
+
             printf("Enter new branch name: ");
-            scanf("%49s", newNode->data.name);
+            scanf("%49[^\n]", newNode->data.name); // scanf with %[^\n] to read until newline
+
             printf("Enter new branch phone: ");
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
             scanf("%19s", newNode->data.phone);
+
             printf("Enter new branch address: ");
-            scanf(" %99[^\n]", newNode->data.address); // Note: space before % to consume any leftover newline
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
+            scanf(" %99[^\n]", newNode->data.address); // Leading space in format string to skip whitespace
+
+            // Numerical input, buffer clearing before is not strictly necessary
             printf("Enter number of rooms: ");
             scanf("%d", &newNode->data.numberOfRooms);
 
@@ -164,7 +176,7 @@ void createRecord(void **head, int entityType) {
             *(BranchNode **)head = newNode;
             break;
         }
-        case ENTITY_ROOM: {
+                case ENTITY_ROOM: {
             RoomNode *newNode = (RoomNode *)malloc(sizeof(RoomNode));
             if (newNode == NULL) {
                 perror("Failed to allocate memory for new RoomNode");
@@ -175,12 +187,16 @@ void createRecord(void **head, int entityType) {
 
             printf("Enter new room ID: ");
             scanf("%d", &newNode->data.roomID);
+
             printf("Enter room number: ");
             scanf("%d", &newNode->data.number);
+
             printf("Enter floor: ");
             scanf("%d", &newNode->data.floor);
+
             printf("Enter cleaning crew ID: ");
             scanf("%d", &newNode->data.cleaningCrewID);
+
             printf("Enter branch ID: ");
             scanf("%d", &newNode->data.branchID);
 
@@ -199,24 +215,37 @@ void createRecord(void **head, int entityType) {
 
             printf("Enter new customer ID: ");
             scanf("%d", &newNode->data.customerID);
+
+            // Clear buffer before reading strings
+            while ((c = getchar()) != '\n' && c != EOF) { }
+
             printf("Enter customer SSN: ");
-            scanf("%19s", newNode->data.SSN);
+            scanf("%10s", newNode->data.SSN);
+
             printf("Enter customer name: ");
-            scanf(" %49[^\n]", newNode->data.name);
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
+            scanf("%49[^\n]", newNode->data.name);
+
             printf("Enter date of birth (YYYY-MM-DD): ");
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
             scanf("%10s", newNode->data.dateOfBirth);
+
             printf("Enter email: ");
-            scanf(" %49[^\n]", newNode->data.email);
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
+            scanf("%49s", newNode->data.email);
+
             printf("Enter booking ID: ");
             scanf("%d", &newNode->data.bookingID);
+
             printf("Enter phone: ");
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
             scanf("%19s", newNode->data.phone);
 
             newNode->next = *(CustomerNode **)head;
             *(CustomerNode **)head = newNode;
             break;
         }
-        case ENTITY_CLEANING_CREW: {
+                case ENTITY_CLEANING_CREW: {
             CleaningCrewNode *newNode = (CleaningCrewNode *)malloc(sizeof(CleaningCrewNode));
             if (newNode == NULL) {
                 perror("Failed to allocate memory for new CleaningCrewNode");
@@ -227,10 +256,18 @@ void createRecord(void **head, int entityType) {
 
             printf("Enter cleaning crew ID: ");
             scanf("%d", &newNode->data.cleaningCrewID);
+
+            // Clear buffer before reading strings
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF) { }
+
             printf("Enter employees names: ");
             scanf(" %49[^\n]", newNode->data.employees);
+
             printf("Enter status: ");
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
             scanf(" %19[^\n]", newNode->data.status);
+
             printf("Enter room ID: ");
             scanf("%d", &newNode->data.roomID);
 
@@ -249,14 +286,21 @@ void createRecord(void **head, int entityType) {
 
             printf("Enter booking ID: ");
             scanf("%d", &newNode->data.bookingID);
+
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
+
             printf("Enter date (YYYY-MM-DD): ");
             scanf("%10s", newNode->data.date);
+
             printf("Enter time (HH:MM): ");
-            scanf("%10s", newNode->data.time);
+            scanf("%5s", newNode->data.time);
+
             printf("Enter customer SSN: ");
             scanf("%11s", newNode->data.customerSSN);
+
             printf("Enter registrar ID: ");
             scanf("%d", &newNode->data.registrarID);
+
             printf("Enter room number: ");
             scanf("%d", &newNode->data.roomNumber);
 
@@ -275,16 +319,24 @@ void createRecord(void **head, int entityType) {
 
             printf("Enter employee ID: ");
             scanf("%d", &newNode->data.employeeID);
+
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
+
             printf("Enter name: ");
             scanf(" %49[^\n]", newNode->data.name);
+
             printf("Enter password: ");
-            scanf("%19s", newNode->data.password);
+            scanf(" %19s", newNode->data.password);
+
             printf("Enter email: ");
-            scanf(" %49[^\n]", newNode->data.email);
+            scanf(" %49s", newNode->data.email);
+
             printf("Enter salary: ");
             scanf("%lf", &newNode->data.salary);
+
             printf("Enter branch ID: ");
             scanf("%d", &newNode->data.branchID);
+
             printf("Enter position: ");
             scanf(" %19[^\n]", newNode->data.position);
 
@@ -303,8 +355,12 @@ void createRecord(void **head, int entityType) {
 
             printf("Enter phone ID: ");
             scanf("%d", &newNode->data.phoneID);
+
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
+
             printf("Enter number: ");
             scanf("%19s", newNode->data.number);
+
             printf("Enter customer SSN: ");
             scanf("%11s", newNode->data.customerSSN);
 
@@ -426,155 +482,154 @@ void readRecord(void *head, int entityType) {
 //update
 void updateRecord(void **head, int entityType, int searchID) {
     pthread_mutex_lock(&entityMutexes[entityType - 1]);
+    int c; // Variable to clear the input buffer
 
     switch (entityType) {
         case ENTITY_BRANCH: {
-            BranchNode **current = (BranchNode **)head;
-            while (*current) {
-                if ((*current)->data.branchID == searchID) {
+            BranchNode *current = *(BranchNode **)head;
+            while (current) {
+                if (current->data.branchID == searchID) {
                     printf("Updating Branch ID %d\n", searchID);
                     printf("Enter new branch name: ");
-                    scanf(" %49[^\n]", (*current)->data.name);
+                    scanf("%49s", current->data.name);
+                    while ((c = getchar()) != '\n' && c != EOF) { }
                     printf("Enter new branch phone: ");
-                    scanf(" %19[^\n]", (*current)->data.phone);
+                    scanf("%19s", current->data.phone);
+                    while ((c = getchar()) != '\n' && c != EOF) { }
                     printf("Enter new branch address: ");
-                    getchar();
-                    fgets((*current)->data.address, 100, stdin);
-                    (*current)->data.address[strcspn((*current)->data.address, "\n")] = 0;
+                    scanf(" %99[^\n]", current->data.address);
                     printf("Enter number of rooms: ");
-                    scanf("%d", &(*current)->data.numberOfRooms);
+                    scanf("%d", &current->data.numberOfRooms);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
         }
         case ENTITY_ROOM: {
-            RoomNode **current = (RoomNode **)head;
-            while (*current) {
-                if ((*current)->data.roomID == searchID) {
+            RoomNode *current = *(RoomNode **)head;
+            while (current) {
+                if (current->data.roomID == searchID) {
                     printf("Updating Room ID %d\n", searchID);
                     printf("Enter room number: ");
-                    scanf("%d", &(*current)->data.number);
+                    scanf("%d", &current->data.number);
                     printf("Enter floor: ");
-                    scanf("%d", &(*current)->data.floor);
+                    scanf("%d", &current->data.floor);
                     printf("Enter cleaning crew ID: ");
-                    scanf("%d", &(*current)->data.cleaningCrewID);
+                    scanf("%d", &current->data.cleaningCrewID);
                     printf("Enter branch ID: ");
-                    scanf("%d", &(*current)->data.branchID);
+                    scanf("%d", &current->data.branchID);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
-        }
-        case ENTITY_CUSTOMER: {
-            CustomerNode **current = (CustomerNode **)head;
-            while (*current) {
-                if ((*current)->data.customerID == searchID) {
+        }        case ENTITY_CUSTOMER: {
+            CustomerNode *current = *(CustomerNode **)head;
+            while (current) {
+                if (current->data.customerID == searchID) {
                     printf("Updating Customer ID %d\n", searchID);
                     printf("Enter customer SSN: ");
-                    scanf("%10s", (*current)->data.SSN);
+                    scanf("%10s", current->data.SSN);
+                    while ((c = getchar()) != '\n' && c != EOF) { }
                     printf("Enter customer name: ");
-                    scanf("%49s", (*current)->data.name);
+                    scanf(" %49[^\n]", current->data.name);
                     printf("Enter date of birth (YYYY-MM-DD): ");
-                    scanf("%9s", (*current)->data.dateOfBirth);
+                    scanf("%10s", current->data.dateOfBirth);
+                    while ((c = getchar()) != '\n' && c != EOF) { }
                     printf("Enter email: ");
-                    scanf("%49s", (*current)->data.email);
+                    scanf(" %49[^\n]", current->data.email);
                     printf("Enter booking ID: ");
-                    scanf("%d", &(*current)->data.bookingID);
+                    scanf("%d", &current->data.bookingID);
                     printf("Enter phone: ");
-                    scanf("%19s", (*current)->data.phone);
+                    scanf("%19s", current->data.phone);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
         }
         case ENTITY_CLEANING_CREW: {
-            CleaningCrewNode **current = (CleaningCrewNode **)head;
-            while (*current) {
-                if ((*current)->data.cleaningCrewID == searchID) {
+            CleaningCrewNode *current = *(CleaningCrewNode **)head;
+            while (current) {
+                if (current->data.cleaningCrewID == searchID) {
                     printf("Updating Cleaning Crew ID %d\n", searchID);
-                    printf("Enter employees: ");
-                    scanf(" %49[^\n]", (*current)->data.employees);
+                    printf("Enter employees names: ");
+                    scanf(" %49[^\n]", current->data.employees);
                     printf("Enter status: ");
-                    scanf(" %19[^\n]", (*current)->data.status);
+                    scanf(" %19[^\n]", current->data.status);
                     printf("Enter room ID: ");
-                    scanf("%d", &(*current)->data.roomID);
+                    scanf("%d", &current->data.roomID);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
         }
         case ENTITY_BOOKING: {
-            BookingNode **current = (BookingNode **)head;
-            while (*current) {
-                if ((*current)->data.bookingID == searchID) {
+            BookingNode *current = *(BookingNode **)head;
+            while (current) {
+                if (current->data.bookingID == searchID) {
                     printf("Updating Booking ID %d\n", searchID);
                     printf("Enter date (YYYY-MM-DD): ");
-                    scanf("%9s", (*current)->data.date);
+                    scanf("%10s", current->data.date);
                     printf("Enter time (HH:MM): ");
-                    scanf("%9s", (*current)->data.time);
+                    scanf("%5s", current->data.time);
                     printf("Enter customer SSN: ");
-                    scanf("%10s", (*current)->data.customerSSN);
+                    scanf("%11s", current->data.customerSSN);
                     printf("Enter registrar ID: ");
-                    scanf("%d", &(*current)->data.registrarID);
+                    scanf("%d", &current->data.registrarID);
                     printf("Enter room number: ");
-                    scanf("%d", &(*current)->data.roomNumber);
+                    scanf("%d", &current->data.roomNumber);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
         }
         case ENTITY_EMPLOYEE: {
-            EmployeeNode **current = (EmployeeNode **)head;
-            while (*current) {
-                if ((*current)->data.employeeID == searchID) {
+            EmployeeNode *current = *(EmployeeNode **)head;
+            while (current) {
+                if (current->data.employeeID == searchID) {
                     printf("Updating Employee ID %d\n", searchID);
                     printf("Enter name: ");
-                    scanf("%49s", (*current)->data.name);
+                    scanf(" %49[^\n]", current->data.name);
                     printf("Enter password: ");
-                    scanf("%19s", (*current)->data.password);
+                    scanf("%19s", current->data.password);
                     printf("Enter email: ");
-                    scanf("%49s", (*current)->data.email);
+                    scanf(" %49[^\n]", current->data.email);
                     printf("Enter salary: ");
-                    scanf("%lf", &(*current)->data.salary);
+                    scanf("%lf", &current->data.salary);
                     printf("Enter branch ID: ");
-                    scanf("%d", &(*current)->data.branchID);
+                    scanf("%d", &current->data.branchID);
                     printf("Enter position: ");
-                    scanf("%19s", (*current)->data.position);
+                    scanf(" %19[^\n]", current->data.position);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
         }
         case ENTITY_PHONE: {
-            PhoneNode **current = (PhoneNode **)head;
-            while (*current) {
-                if ((*current)->data.phoneID == searchID) {
+            PhoneNode *current = *(PhoneNode **)head;
+            while (current) {
+                if (current->data.phoneID == searchID) {
                     printf("Updating Phone ID %d\n", searchID);
                     printf("Enter number: ");
-                    scanf("%19s", (*current)->data.number);
+                    scanf("%20s", current->data.number);
                     printf("Enter customer SSN: ");
-                    scanf("%10s", (*current)->data.customerSSN);
+                    scanf("%11s", current->data.customerSSN);
                     break;
                 }
-                current = &(*current)->next;
+                current = current->next;
             }
             break;
         }
-        default:
-            printf("Invalid entity type.\n");
-            break;
+
     }
 
     pthread_mutex_unlock(&entityMutexes[entityType - 1]);
 }
-
 
 //delete
 void deleteRecord(void **head, int entityType, int searchID) {
@@ -676,13 +731,12 @@ typedef struct ThreadArgs {
 //thread function that handles concurrent access to the program using mutexes
 void *threadFunction(void *args) {
     ThreadArgs *threadArgs = (ThreadArgs *)args;
-    int operationChoice;
-    int entityChoice;
-    int searchID; 
+    int operationChoice, entityChoice, searchID, c;
 
     while (1) {
         printf("\nChoose operation: 1. Create 2. Read 3. Update 4. Delete 5. Exit\n");
         scanf("%d", &operationChoice);
+        while ((c = getchar()) != '\n' && c != EOF) { } // Clear input buffer
 
         if (operationChoice == 5) {
             break;
@@ -690,14 +744,17 @@ void *threadFunction(void *args) {
 
         printf("\nChoose entity type: 1. Branch 2. Room 3. Customer 4. Cleaning Crew 5. Booking 6. Employee 7. Phone\n");
         scanf("%d", &entityChoice);
+        while ((c = getchar()) != '\n' && c != EOF) { } // Clear input buffer
 
         entityChoice--;
-
-        if (operationChoice == 3 || operationChoice == 4) { // Update or Delete
+        
+        if (operationChoice == 3 || operationChoice == 4) { // For Update or Delete, require ID
             printf("Enter ID for the operation: ");
             scanf("%d", &searchID);
+            while ((c = getchar()) != '\n' && c != EOF) { } // Clear input buffer
         }
 
+        // Execute the selected operation
         switch (operationChoice) {
             case 1: // Create
                 createRecord(&(threadArgs->heads[entityChoice]), entityChoice);
@@ -712,13 +769,14 @@ void *threadFunction(void *args) {
                 deleteRecord(&(threadArgs->heads[entityChoice]), entityChoice, searchID);
                 break;
             default:
-                printf("Invalid operation choice\n");
+                printf("Invalid operation choice.\n");
                 break;
         }
     }
 
     return NULL;
 }
+
 
 
 //clean up functions for each entity for exit
@@ -804,17 +862,25 @@ void* userInteractionThread(void* arg) {
     int operationChoice, entityChoice, idToActOn;
     EntityType selectedEntityType;
     void *selectedHead = NULL;
+    int c; // For clearing the input buffer
 
     // Loop until the user decides to exit
     while (1) {
         displayCRUDMenu();
         scanf("%d", &operationChoice);
 
+        // Clear the input buffer
+        while ((c = getchar()) != '\n' && c != EOF) {}
+
         // Exit condition
         if (operationChoice == 5) break;
 
         displayEntityMenu();
         scanf("%d", &entityChoice);
+
+        // Clear the input buffer
+        while ((c = getchar()) != '\n' && c != EOF) {}
+
         selectedEntityType = entityChoice - 1; // Adjusting for 0-based indexing
 
         // Ensure the selection is valid
@@ -833,16 +899,22 @@ void* userInteractionThread(void* arg) {
             case 2: // Read
                 printf("Enter ID to read: ");
                 scanf("%d", &idToActOn);
-                readRecord(selectedHead, selectedEntityType);                  
+                // Clear the input buffer
+                while ((c = getchar()) != '\n' && c != EOF) {}
+                readRecord(selectedHead, selectedEntityType);
                 break;
             case 3: // Update
                 printf("Enter ID to update: ");
                 scanf("%d", &idToActOn);
+                // Clear the input buffer
+                while ((c = getchar()) != '\n' && c != EOF) {}
                 updateRecord(&selectedHead, selectedEntityType, idToActOn);
                 break;
             case 4: // Delete
                 printf("Enter ID to delete: ");
                 scanf("%d", &idToActOn);
+                // Clear the input buffer
+                while ((c = getchar()) != '\n' && c != EOF) {}
                 deleteRecord(&selectedHead, selectedEntityType, idToActOn);
                 break;
             default:
@@ -854,34 +926,47 @@ void* userInteractionThread(void* arg) {
     pthread_exit(NULL);
 }
 
-
 int main() {
     pthread_mutex_t mutexes[ENTITY_COUNT];
     for (int i = 0; i < ENTITY_COUNT; i++) {
         pthread_mutex_init(&mutexes[i], NULL);
     }
-    
-    void *heads[ENTITY_COUNT] = {&branchHead, &roomHead, &customerHead, &cleaningCrewHead, &bookingHead, &employeeHead, &phoneHead};
 
+    // Initialize pointers to head of each entity list
+    void *heads[ENTITY_COUNT] = {
+        &branchHead, &roomHead, &customerHead,
+        &cleaningCrewHead, &bookingHead, &employeeHead, &phoneHead
+    };
+
+    // Main program loop
     while (1) {
         int entityChoice = 0;
         int operationChoice = 0;
+        int c; // Variable for clearing input buffer
 
         displayEntityMenu();
         printf("Enter your choice (or 8 to exit): ");
         scanf("%d", &entityChoice);
+
+        // Clear the input buffer after reading choice
+        while ((c = getchar()) != '\n' && c != EOF) {}
+
         if (entityChoice == 8) break; // Exit program
 
         displayCRUDMenu();
         printf("Enter your choice (or 5 to go back): ");
         scanf("%d", &operationChoice);
+
+        // Clear the input buffer after reading choice
+        while ((c = getchar()) != '\n' && c != EOF) {}
+
         if (operationChoice == 5) continue; // Go back to the entity selection
 
-        ThreadArgs threadArgs;
-        threadArgs.mutexes = mutexes;
-        threadArgs.entityType = entityChoice;
-        threadArgs.operationType = operationChoice;
-        threadArgs.heads = heads;
+        ThreadArgs threadArgs = {
+            .mutexes = mutexes,
+            .entityType = entityChoice - 1, // Adjust for 0-based indexing in heads array
+            .heads = heads
+        };
 
         pthread_t tid;
         pthread_create(&tid, NULL, userInteractionThread, (void*)&threadArgs);
@@ -892,7 +977,7 @@ int main() {
     for (int i = 0; i < ENTITY_COUNT; i++) {
         pthread_mutex_destroy(&mutexes[i]);
     }
-    
+
     freeBranchLinkedList(branchHead);
     freeRoomLinkedList(roomHead);
     freeCustomerLinkedList(customerHead);
@@ -900,5 +985,6 @@ int main() {
     freeBookingLinkedList(bookingHead);
     freeEmployeeLinkedList(employeeHead);
     freePhoneLinkedList(phoneHead);
+
     return 0;
 }
