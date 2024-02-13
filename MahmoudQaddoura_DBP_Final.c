@@ -802,47 +802,57 @@ typedef struct ThreadArgs {
     void **heads; // Array of pointers to the head of each linked list
 } ThreadArgs;
 
-
+//this function handels user interaction with the inner most functionalities of the proram
 void* userInteractionThread(void* arg) {
     ThreadArgs *args = (ThreadArgs*) arg;
-    int operationChoice = 0, searchID = 0;
-    char operation[256] = {0};
+    int operationChoice, entityChoice, idToActOn;
+    EntityType selectedEntityType;
+    void *selectedHead = NULL;
 
+    // Loop until the user decides to exit
     while (1) {
-        printf("\n1. Create\n2. Read\n3. Update\n4. Delete\n5. Exit\nSelect operation: ");
+        displayCRUDMenu();
         scanf("%d", &operationChoice);
 
+        // Exit condition
         if (operationChoice == 5) break;
-        switch (operationChoice) {
-            case 1: // Create
-                createRecord(&(args->heads[args->entityType - 1]), args->entityType);
-                strcpy(operation, "Create");
-                break;
-            case 2: // Read
-                printf("Enter the ID to read: ");
-                scanf("%d", &searchID);
-                readRecord(args->heads[args->entityType - 1], args->entityType, searchID);
-                strcpy(operation, "Read");
-                break;
-            case 3: // Update
-                printf("Enter the ID to update: ");
-                scanf("%d", &searchID);
-                updateRecord(&(args->heads[args->entityType - 1]), args->entityType, searchID);
-                strcpy(operation, "Update");
-                break;
-            case 4: // Delete
-                printf("Enter the ID to delete: ");
-                scanf("%d", &searchID);
-                deleteRecord(&(args->heads[args->entityType - 1]), args->entityType, searchID);
-                strcpy(operation, "Delete");
-                break;
-            default:
-                printf("Invalid operation. Please try again.\n");
-                continue;
+
+        displayEntityMenu();
+        scanf("%d", &entityChoice);
+        selectedEntityType = entityChoice - 1; // Adjusting for 0-based indexing
+
+        // Ensure the selection is valid
+        if (selectedEntityType < 0 || selectedEntityType >= ENTITY_COUNT) {
+            printf("Invalid entity type selected.\n");
+            continue;
         }
 
-        // Log the operation
-        logOperation(operation);
+        selectedHead = args->heads[selectedEntityType];
+
+        // Perform the selected operation
+        switch (operationChoice) {
+            case 1: // Create
+                createRecord(&selectedHead, selectedEntityType);
+                break;
+            case 2: // Read
+                printf("Enter ID to read: ");
+                scanf("%d", &idToActOn);
+                readRecord(selectedHead, selectedEntityType, idToActOn);
+                break;
+            case 3: // Update
+                printf("Enter ID to update: ");
+                scanf("%d", &idToActOn);
+                updateRecord(&selectedHead, selectedEntityType, idToActOn);
+                break;
+            case 4: // Delete
+                printf("Enter ID to delete: ");
+                scanf("%d", &idToActOn);
+                deleteRecord(&selectedHead, selectedEntityType, idToActOn);
+                break;
+            default:
+                printf("Invalid operation selected.\n");
+                break;
+        }
     }
 
     pthread_exit(NULL);
