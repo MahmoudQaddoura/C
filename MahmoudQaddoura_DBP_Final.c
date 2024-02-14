@@ -1,26 +1,44 @@
 #include <stdio.h>
+
 #include <stdlib.h>
+
 #include <string.h>
+
 #include <pthread.h>
 
-#define ENTITY_COUNT 7
+// Define entity types
+#define ENTITY_BRANCH 1
+#define ENTITY_ROOM 2
+#define ENTITY_CUSTOMER 3
+#define ENTITY_CLEANING_CREW 4
+#define ENTITY_BOOKING 5
+#define ENTITY_EMPLOYEE 6
+#define ENTITY_PHONE 7
 
-//entity structs
+// Define operation types
+#define OPERATION_CREATE 1
+#define OPERATION_READ 2
+#define OPERATION_UPDATE 3
+#define OPERATION_DELETE 4
+#define OPERATION_EXIT 5
+
 typedef struct {
     int branchID;
     char name[50];
     char phone[20];
     char address[100];
     int numberOfRooms;
-} Branch;
+}
+Branch;
 
 typedef struct {
     int roomID;
     int number;
     int floor;
-    int cleaningCrewID;  
-    int branchID;       
-} Room;
+    int cleaningCrewID;
+    int branchID;
+}
+Room;
 
 typedef struct {
     int customerID;
@@ -28,25 +46,28 @@ typedef struct {
     char name[50];
     char dateOfBirth[10];
     char email[50];
-    int bookingID;  
+    int bookingID;
     char phone[20];
-} Customer;
+}
+Customer;
 
 typedef struct {
     int cleaningCrewID;
-    char employees[50];  
+    char employees[50];
     char status[20];
-    int roomID;    
-} CleaningCrew;
+    int roomID;
+}
+CleaningCrew;
 
 typedef struct {
     int bookingID;
     char date[10];
     char time[10];
-    char customerSSN[11]; 
-    int registrarID;     
-    int roomNumber;     
-} Booking;
+    char customerSSN[11];
+    int registrarID;
+    int roomNumber;
+}
+Booking;
 
 typedef struct {
     int employeeID;
@@ -56,652 +77,1235 @@ typedef struct {
     double salary;
     int branchID;
     char position[20];
-} Employee;
+}
+Employee;
 
 typedef struct {
     int phoneID;
     char number[20];
     char customerSSN[11];
-} Phone;
+}
+Phone;
 
-// Linked list node structures
+// Mutex for thread-safe CRUD operations on shared data
+pthread_mutex_t dataMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t logMutex;
+
+//non_CRUD functions
+void logData(const char * logMessage);
+void trimNewline(char * string);
+void displayEntityMenu();
+void displayCRUDMenu();
+void handleOperation(int entityChoice, int operationChoice);
+void initializeApplication();
+void cleanupApplication();
+void flushInput();
+
+// Branch Operations
+void createBranch(Branch * branch);
+void readBranch(int branchID);
+void updateBranch(int branchID, Branch * updatedBranch);
+void deleteBranch(int branchID);
+
+// Room Operations
+void createRoom(Room * room);
+void readRoom(int roomID);
+void updateRoom(int roomID, Room * updatedRoom);
+void deleteRoom(int roomID);
+
+// Customer Operations
+void createCustomer(Customer * customer);
+void readCustomer(int customerID);
+void updateCustomer(int customerID, Customer * updatedCustomer);
+void deleteCustomer(int customerID);
+
+// Cleaning Crew Operations
+void createCleaningCrew(CleaningCrew * crew);
+void readCleaningCrew(int cleaningCrewID);
+void updateCleaningCrew(int cleaningCrewID, CleaningCrew * updatedCrew);
+void deleteCleaningCrew(int cleaningCrewID);
+
+// Booking Operations
+void createBooking(Booking * booking);
+void readBooking(int bookingID);
+void updateBooking(int bookingID, Booking * updatedBooking);
+void deleteBooking(int bookingID);
+
+// Employee Operations
+void createEmployee(Employee * employee);
+void readEmployee(int employeeID);
+void updateEmployee(int employeeID, Employee * updatedEmployee);
+void deleteEmployee(int employeeID);
+
+// Phone Operations
+void createPhone(Phone * phone);
+void readPhone(int phoneID);
+void updatePhone(int phoneID, Phone * updatedPhone);
+void deletePhone(int phoneID);
+
+//type definition and node head initialization for entities
 typedef struct BranchNode {
-   Branch data;
-   struct BranchNode *next;
-} BranchNode;
+    Branch data;
+    struct BranchNode * next;
+}
+BranchNode;
+BranchNode * branchHead = NULL;
 
 typedef struct RoomNode {
-   Room data;
-   struct RoomNode *next;
-} RoomNode;
+    Room data;
+    struct RoomNode * next;
+}
+RoomNode;
+RoomNode * roomHead = NULL;
 
 typedef struct CustomerNode {
-   Customer data;
-   struct CustomerNode *next;
-} CustomerNode;
+    Customer data;
+    struct CustomerNode * next;
+}
+CustomerNode;
+CustomerNode * customerHead = NULL;
 
 typedef struct CleaningCrewNode {
-   CleaningCrew data;
-   struct CleaningCrewNode *next;
-} CleaningCrewNode;
+    CleaningCrew data;
+    struct CleaningCrewNode * next;
+}
+CleaningCrewNode;
+CleaningCrewNode * cleaningCrewHead = NULL;
 
 typedef struct BookingNode {
-   Booking data;
-   struct BookingNode *next;
-} BookingNode;
+    Booking data;
+    struct BookingNode * next;
+}
+BookingNode;
+BookingNode * bookingHead = NULL;
 
 typedef struct EmployeeNode {
-   Employee data;
-   struct EmployeeNode *next;
-} EmployeeNode;
+    Employee data;
+    struct EmployeeNode * next;
+}
+EmployeeNode;
+EmployeeNode * employeeHead = NULL;
 
 typedef struct PhoneNode {
-   Phone data;
-   struct PhoneNode *next;
-} PhoneNode;
+    Phone data;
+    struct PhoneNode * next;
+}
+PhoneNode;
+PhoneNode * phoneHead = NULL;
 
-BranchNode *branchHead = NULL;
-RoomNode *roomHead = NULL;
-CustomerNode *customerHead = NULL;
-CleaningCrewNode *cleaningCrewHead = NULL;
-BookingNode *bookingHead = NULL;
-EmployeeNode *employeeHead = NULL;
-PhoneNode *phoneHead = NULL;
+//logging function
+const char * logFileName = "./application_log.txt";
 
-//generic CRUD operations and thread function prototypes
-void createRecord(void **head, int entityType);
-void readRecord(void* head, int entityType);
-void updateRecord(void **head, int entityType, int searchID);
-void deleteRecord(void **head, int entityType, int searchID);
-void* threadFunction(void* args);
+void logData(const char * logMessage) {
+    pthread_mutex_lock( & logMutex);
+    FILE * logFile = fopen(logFileName, "a"); // Open in append mode
+    if (logFile != NULL) {
+        fprintf(logFile, "%s\n", logMessage);
+        fclose(logFile); // Close after writing to ensure data is saved
+    } else {
+        printf("Failed to open log file.\n");
+    }
+    pthread_mutex_unlock( & logMutex);
+}
 
-//enums that point to entity type to be used in generic CRUD functions
-typedef enum {
-    ENTITY_BRANCH,
-    ENTITY_ROOM,
-    ENTITY_CUSTOMER,
-    ENTITY_CLEANING_CREW,
-    ENTITY_BOOKING,
-    ENTITY_EMPLOYEE,
-    ENTITY_PHONE
-} EntityType;
+//Branch
+void createBranch(Branch * branch) {
+    pthread_mutex_lock( & dataMutex);
 
-//globaly declared array of mutexes
-pthread_mutex_t entityMutexes[ENTITY_COUNT];
+    BranchNode * newNode = (BranchNode * ) malloc(sizeof(BranchNode));
+    if (newNode == NULL) {
+        pthread_mutex_unlock( & dataMutex);
+        logData("Error: Failed to allocate memory for new Branch.");
+        return;
+    }
+    newNode -> data = * branch;
+    newNode -> next = branchHead;
+    branchHead = newNode;
 
-//mutex for db log file
-pthread_mutex_t fileMutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_unlock( & dataMutex);
 
-// Path to the log file
-const char* logFilePath = "operation_log.txt";
+    char logMessage[256];
+    snprintf(logMessage, sizeof(logMessage), "Branch created: ID=%d, Name=%s", branch -> branchID, branch -> name);
+    logData(logMessage);
+}
 
-//CRUD functions operations implementation with mutex Lock and Unlock to handle concurruncy
-//create
-void createRecord(void **head, int entityType) {
-    pthread_mutex_lock(&entityMutexes[entityType - 1]);
-    int c; // Variable for clearing input buffer
-    switch (entityType) {
-        case ENTITY_BRANCH: {
-            BranchNode *newNode = (BranchNode *)malloc(sizeof(BranchNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new BranchNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(BranchNode));
+void readBranch(int branchID) {
+    pthread_mutex_lock( & dataMutex);
 
-            // Numerical input, no buffer clearing needed immediately after
-            printf("Enter new branch ID: ");
-            scanf("%d", &newNode->data.branchID);
+    BranchNode * current = branchHead;
+    while (current != NULL) {
+        if (current -> data.branchID == branchID) {
+            pthread_mutex_unlock( & dataMutex);
 
-            // Clear buffer before reading strings
-            while ((c = getchar()) != '\n' && c != EOF) { }
-
-            printf("Enter new branch name: ");
-            scanf("%49[^\n]", newNode->data.name); // scanf with %[^\n] to read until newline
-
-            printf("Enter new branch phone: ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf("%19s", newNode->data.phone);
-
-            printf("Enter new branch address: ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf(" %99[^\n]", newNode->data.address); // Leading space in format string to skip whitespace
-
-            // Numerical input, buffer clearing before is not strictly necessary
-            printf("Enter number of rooms: ");
-            scanf("%d", &newNode->data.numberOfRooms);
-
-            newNode->next = *(BranchNode **)head;
-            *(BranchNode **)head = newNode;
-            break;
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Branch read: ID=%d, Name=%s", current -> data.branchID, current -> data.name);
+            logData(logMessage);
+            return;
         }
-                case ENTITY_ROOM: {
-            RoomNode *newNode = (RoomNode *)malloc(sizeof(RoomNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new RoomNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(RoomNode));
-
-            printf("Enter new room ID: ");
-            scanf("%d", &newNode->data.roomID);
-
-            printf("Enter room number: ");
-            scanf("%d", &newNode->data.number);
-
-            printf("Enter floor: ");
-            scanf("%d", &newNode->data.floor);
-
-            printf("Enter cleaning crew ID: ");
-            scanf("%d", &newNode->data.cleaningCrewID);
-
-            printf("Enter branch ID: ");
-            scanf("%d", &newNode->data.branchID);
-
-            newNode->next = *(RoomNode **)head;
-            *(RoomNode **)head = newNode;
-            break;
-        }
-        case ENTITY_CUSTOMER: {
-            CustomerNode *newNode = (CustomerNode *)malloc(sizeof(CustomerNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new CustomerNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(CustomerNode));
-
-            printf("Enter new customer ID: ");
-            scanf("%d", &newNode->data.customerID);
-
-            // Clear buffer before reading strings
-            while ((c = getchar()) != '\n' && c != EOF) { }
-
-            printf("Enter customer SSN: ");
-            scanf("%10s", newNode->data.SSN);
-
-            printf("Enter customer name: ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf("%49[^\n]", newNode->data.name);
-
-            printf("Enter date of birth (YYYY-MM-DD): ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf("%10s", newNode->data.dateOfBirth);
-
-            printf("Enter email: ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf("%49s", newNode->data.email);
-
-            printf("Enter booking ID: ");
-            scanf("%d", &newNode->data.bookingID);
-
-            printf("Enter phone: ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf("%19s", newNode->data.phone);
-
-            newNode->next = *(CustomerNode **)head;
-            *(CustomerNode **)head = newNode;
-            break;
-        }
-                case ENTITY_CLEANING_CREW: {
-            CleaningCrewNode *newNode = (CleaningCrewNode *)malloc(sizeof(CleaningCrewNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new CleaningCrewNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(CleaningCrewNode));
-
-            printf("Enter cleaning crew ID: ");
-            scanf("%d", &newNode->data.cleaningCrewID);
-
-            // Clear buffer before reading strings
-            int c;
-            while ((c = getchar()) != '\n' && c != EOF) { }
-
-            printf("Enter employees names: ");
-            scanf(" %49[^\n]", newNode->data.employees);
-
-            printf("Enter status: ");
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-            scanf(" %19[^\n]", newNode->data.status);
-
-            printf("Enter room ID: ");
-            scanf("%d", &newNode->data.roomID);
-
-            newNode->next = *(CleaningCrewNode **)head;
-            *(CleaningCrewNode **)head = newNode;
-            break;
-        }
-        case ENTITY_BOOKING: {
-            BookingNode *newNode = (BookingNode *)malloc(sizeof(BookingNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new BookingNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(BookingNode));
-
-            printf("Enter booking ID: ");
-            scanf("%d", &newNode->data.bookingID);
-
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-
-            printf("Enter date (YYYY-MM-DD): ");
-            scanf("%10s", newNode->data.date);
-
-            printf("Enter time (HH:MM): ");
-            scanf("%5s", newNode->data.time);
-
-            printf("Enter customer SSN: ");
-            scanf("%11s", newNode->data.customerSSN);
-
-            printf("Enter registrar ID: ");
-            scanf("%d", &newNode->data.registrarID);
-
-            printf("Enter room number: ");
-            scanf("%d", &newNode->data.roomNumber);
-
-            newNode->next = *(BookingNode **)head;
-            *(BookingNode **)head = newNode;
-            break;
-        }
-        case ENTITY_EMPLOYEE: {
-            EmployeeNode *newNode = (EmployeeNode *)malloc(sizeof(EmployeeNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new EmployeeNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(EmployeeNode));
-
-            printf("Enter employee ID: ");
-            scanf("%d", &newNode->data.employeeID);
-
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-
-            printf("Enter name: ");
-            scanf(" %49[^\n]", newNode->data.name);
-
-            printf("Enter password: ");
-            scanf(" %19s", newNode->data.password);
-
-            printf("Enter email: ");
-            scanf(" %49s", newNode->data.email);
-
-            printf("Enter salary: ");
-            scanf("%lf", &newNode->data.salary);
-
-            printf("Enter branch ID: ");
-            scanf("%d", &newNode->data.branchID);
-
-            printf("Enter position: ");
-            scanf(" %19[^\n]", newNode->data.position);
-
-            newNode->next = *(EmployeeNode **)head;
-            *(EmployeeNode **)head = newNode;
-            break;
-        }
-        case ENTITY_PHONE: {
-            PhoneNode *newNode = (PhoneNode *)malloc(sizeof(PhoneNode));
-            if (newNode == NULL) {
-                perror("Failed to allocate memory for new PhoneNode");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
-            }
-            memset(newNode, 0, sizeof(PhoneNode));
-
-            printf("Enter phone ID: ");
-            scanf("%d", &newNode->data.phoneID);
-
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear buffer
-
-            printf("Enter number: ");
-            scanf("%19s", newNode->data.number);
-
-            printf("Enter customer SSN: ");
-            scanf("%11s", newNode->data.customerSSN);
-
-            newNode->next = *(PhoneNode **)head;
-            *(PhoneNode **)head = newNode;
-            break;
-        }
+        current = current -> next;
     }
 
-    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
+    pthread_mutex_unlock( & dataMutex);
+    logData("Branch not found for read operation.");
 }
 
-//Display functions to show readRecord results to the user
+void updateBranch(int branchID, Branch * updatedBranch) {
+    pthread_mutex_lock( & dataMutex);
 
-void displayBranch(const Branch* branch) {
-    printf("ID: %d, Name: %s, Phone: %s, Address: %s, Number of Rooms: %d\n",
-           branch->branchID, branch->name, branch->phone, branch->address, branch->numberOfRooms);
-}
+    BranchNode * current = branchHead;
+    while (current != NULL) {
+        if (current -> data.branchID == branchID) {
+            current -> data = * updatedBranch;
 
-void displayRoom(const Room* room) {
-    printf("ID: %d, Number: %d, Floor: %d, Cleaning Crew ID: %d, Branch ID: %d\n",
-           room->roomID, room->number, room->floor, room->cleaningCrewID, room->branchID);
-}
+            pthread_mutex_unlock( & dataMutex);
 
-void displayCustomer(const Customer* customer) {
-    printf("ID: %d, SSN: %s, Name: %s, Date of Birth: %s, Email: %s, Booking ID: %d, Phone: %s\n",
-           customer->customerID, customer->SSN, customer->name, customer->dateOfBirth, customer->email, customer->bookingID, customer->phone);
-}
-
-void displayCleaningCrew(const CleaningCrew* crew) {
-    printf("ID: %d, Employees: %s, Status: %s, Room ID: %d\n",
-           crew->cleaningCrewID, crew->employees, crew->status, crew->roomID);
-}
-
-void displayBooking(const Booking* booking) {
-    printf("ID: %d, Date: %s, Time: %s, Customer SSN: %s, Registrar ID: %d, Room Number: %d\n",
-           booking->bookingID, booking->date, booking->time, booking->customerSSN, booking->registrarID, booking->roomNumber);
-}
-
-void displayEmployee(const Employee* employee) {
-    printf("ID: %d, Name: %s, Password: [PROTECTED], Email: %s, Salary: %.2f, Branch ID: %d, Position: %s\n",
-           employee->employeeID, employee->name, employee->email, employee->salary, employee->branchID, employee->position);
-}
-
-void displayPhone(const Phone* phone) {
-    printf("ID: %d, Number: %s, Customer SSN: %s\n",
-           phone->phoneID, phone->number, phone->customerSSN);
-}
-
-//read
-void readRecord(void *head, int entityType) {
-    pthread_mutex_lock(&entityMutexes[entityType - 1]); 
-
-    switch (entityType) {
-        case ENTITY_BRANCH: {
-            BranchNode *current = (BranchNode *)head;
-            while (current != NULL) {
-                displayBranch(&current->data); 
-                current = current->next;
-            }
-            break;
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Branch updated: ID=%d, Name=%s", updatedBranch -> branchID, updatedBranch -> name);
+            logData(logMessage);
+            return;
         }
-        case ENTITY_ROOM: {
-            RoomNode *current = (RoomNode *)head;
-            while (current != NULL) {
-                displayRoom(&current->data); 
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_CUSTOMER: {
-            CustomerNode *current = (CustomerNode *)head;
-            while (current != NULL) {
-                displayCustomer(&current->data); 
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_CLEANING_CREW: {
-            CleaningCrewNode *current = (CleaningCrewNode *)head;
-            while (current != NULL) {
-                displayCleaningCrew(&current->data); 
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_BOOKING: {
-            BookingNode *current = (BookingNode *)head;
-            while (current != NULL) {
-                displayBooking(&current->data); 
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_EMPLOYEE: {
-            EmployeeNode *current = (EmployeeNode *)head;
-            while (current != NULL) {
-                displayEmployee(&current->data); 
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_PHONE: {
-            PhoneNode *current = (PhoneNode *)head;
-            while (current != NULL) {
-                displayPhone(&current->data); 
-                current = current->next;
-            }
-            break;
-        }
-        default:
-            printf("Invalid entity type.\n");
-            break;
+        current = current -> next;
     }
 
-    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
+    pthread_mutex_unlock( & dataMutex);
+    logData("Branch not found for update operation.");
 }
 
-//update
-void updateRecord(void **head, int entityType, int searchID) {
-    pthread_mutex_lock(&entityMutexes[entityType - 1]);
-    int c; // Variable to clear the input buffer
+void deleteBranch(int branchID) {
+    pthread_mutex_lock( & dataMutex);
 
-    switch (entityType) {
-        case ENTITY_BRANCH: {
-            BranchNode *current = *(BranchNode **)head;
-            while (current) {
-                if (current->data.branchID == searchID) {
-                    printf("Updating Branch ID %d\n", searchID);
-                    printf("Enter new branch name: ");
-                    scanf("%49s", current->data.name);
-                    while ((c = getchar()) != '\n' && c != EOF) { }
-                    printf("Enter new branch phone: ");
-                    scanf("%19s", current->data.phone);
-                    while ((c = getchar()) != '\n' && c != EOF) { }
-                    printf("Enter new branch address: ");
-                    scanf(" %99[^\n]", current->data.address);
-                    printf("Enter number of rooms: ");
-                    scanf("%d", &current->data.numberOfRooms);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_ROOM: {
-            RoomNode *current = *(RoomNode **)head;
-            while (current) {
-                if (current->data.roomID == searchID) {
-                    printf("Updating Room ID %d\n", searchID);
-                    printf("Enter room number: ");
-                    scanf("%d", &current->data.number);
-                    printf("Enter floor: ");
-                    scanf("%d", &current->data.floor);
-                    printf("Enter cleaning crew ID: ");
-                    scanf("%d", &current->data.cleaningCrewID);
-                    printf("Enter branch ID: ");
-                    scanf("%d", &current->data.branchID);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }        case ENTITY_CUSTOMER: {
-            CustomerNode *current = *(CustomerNode **)head;
-            while (current) {
-                if (current->data.customerID == searchID) {
-                    printf("Updating Customer ID %d\n", searchID);
-                    printf("Enter customer SSN: ");
-                    scanf("%10s", current->data.SSN);
-                    while ((c = getchar()) != '\n' && c != EOF) { }
-                    printf("Enter customer name: ");
-                    scanf(" %49[^\n]", current->data.name);
-                    printf("Enter date of birth (YYYY-MM-DD): ");
-                    scanf("%10s", current->data.dateOfBirth);
-                    while ((c = getchar()) != '\n' && c != EOF) { }
-                    printf("Enter email: ");
-                    scanf(" %49[^\n]", current->data.email);
-                    printf("Enter booking ID: ");
-                    scanf("%d", &current->data.bookingID);
-                    printf("Enter phone: ");
-                    scanf("%19s", current->data.phone);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_CLEANING_CREW: {
-            CleaningCrewNode *current = *(CleaningCrewNode **)head;
-            while (current) {
-                if (current->data.cleaningCrewID == searchID) {
-                    printf("Updating Cleaning Crew ID %d\n", searchID);
-                    printf("Enter employees names: ");
-                    scanf(" %49[^\n]", current->data.employees);
-                    printf("Enter status: ");
-                    scanf(" %19[^\n]", current->data.status);
-                    printf("Enter room ID: ");
-                    scanf("%d", &current->data.roomID);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_BOOKING: {
-            BookingNode *current = *(BookingNode **)head;
-            while (current) {
-                if (current->data.bookingID == searchID) {
-                    printf("Updating Booking ID %d\n", searchID);
-                    printf("Enter date (YYYY-MM-DD): ");
-                    scanf("%10s", current->data.date);
-                    printf("Enter time (HH:MM): ");
-                    scanf("%5s", current->data.time);
-                    printf("Enter customer SSN: ");
-                    scanf("%11s", current->data.customerSSN);
-                    printf("Enter registrar ID: ");
-                    scanf("%d", &current->data.registrarID);
-                    printf("Enter room number: ");
-                    scanf("%d", &current->data.roomNumber);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_EMPLOYEE: {
-            EmployeeNode *current = *(EmployeeNode **)head;
-            while (current) {
-                if (current->data.employeeID == searchID) {
-                    printf("Updating Employee ID %d\n", searchID);
-                    printf("Enter name: ");
-                    scanf(" %49[^\n]", current->data.name);
-                    printf("Enter password: ");
-                    scanf("%19s", current->data.password);
-                    printf("Enter email: ");
-                    scanf(" %49[^\n]", current->data.email);
-                    printf("Enter salary: ");
-                    scanf("%lf", &current->data.salary);
-                    printf("Enter branch ID: ");
-                    scanf("%d", &current->data.branchID);
-                    printf("Enter position: ");
-                    scanf(" %19[^\n]", current->data.position);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }
-        case ENTITY_PHONE: {
-            PhoneNode *current = *(PhoneNode **)head;
-            while (current) {
-                if (current->data.phoneID == searchID) {
-                    printf("Updating Phone ID %d\n", searchID);
-                    printf("Enter number: ");
-                    scanf("%20s", current->data.number);
-                    printf("Enter customer SSN: ");
-                    scanf("%11s", current->data.customerSSN);
-                    break;
-                }
-                current = current->next;
-            }
-            break;
-        }
+    BranchNode ** current = & branchHead, * temp;
+    while ( * current != NULL) {
+        if (( * current) -> data.branchID == branchID) {
+            temp = * current;
+            * current = ( * current) -> next;
+            free(temp);
 
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Branch deleted: ID=%d", branchID);
+            logData(logMessage);
+            return;
+        }
+        current = & (( * current) -> next);
     }
 
-    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
+    pthread_mutex_unlock( & dataMutex);
+    logData("Branch not found for delete operation.");
 }
 
-//delete
-void deleteRecord(void **head, int entityType, int searchID) {
-    if (!head || !*head) return; // Check if the list is empty or the head is NULL.
+//Room
+void createRoom(Room * room) {
+    pthread_mutex_lock( & dataMutex);
 
-    pthread_mutex_lock(&entityMutexes[entityType - 1]);
+    RoomNode * newNode = (RoomNode * ) malloc(sizeof(RoomNode));
+    if (newNode == NULL) {
+        pthread_mutex_unlock( & dataMutex);
+        logData("Error: Failed to allocate memory for new Room.");
+        return;
+    }
+    newNode -> data = * room;
+    newNode -> next = roomHead;
+    roomHead = newNode;
 
-    // Use temporary pointers for traversal and deletion.
-    void **curr = head;
-    while (*curr) {
-        int idMatch = 0; // Flag to indicate if the ID matches.
-        // Cast the current node based on the entity type and compare IDs.
-        switch (entityType) {
-            case ENTITY_BRANCH: {
-                BranchNode *node = (BranchNode *)*curr;
-                idMatch = (node->data.branchID == searchID);
-                break;
-            }
-            case ENTITY_ROOM: {
-                RoomNode *node = (RoomNode *)*curr;
-                idMatch = (node->data.roomID == searchID);
-                break;
-            }
-            // Repeat for other entity types...
-            case ENTITY_CUSTOMER: {
-                CustomerNode *node = (CustomerNode *)*curr;
-                idMatch = (node->data.customerID == searchID);
-                break;
-            }
-            case ENTITY_CLEANING_CREW: {
-                CleaningCrewNode *node = (CleaningCrewNode *)*curr;
-                idMatch = (node->data.cleaningCrewID == searchID);
-                break;
-            }
-            case ENTITY_BOOKING: {
-                BookingNode *node = (BookingNode *)*curr;
-                idMatch = (node->data.bookingID == searchID);
-                break;
-            }
-            case ENTITY_EMPLOYEE: {
-                EmployeeNode *node = (EmployeeNode *)*curr;
-                idMatch = (node->data.employeeID == searchID);
-                break;
-            }
-            case ENTITY_PHONE: {
-                PhoneNode *node = (PhoneNode *)*curr;
-                idMatch = (node->data.phoneID == searchID);
-                break;
-            }
-            default:
-                printf("Invalid entity type.\n");
-                pthread_mutex_unlock(&entityMutexes[entityType - 1]);
-                return;
+    pthread_mutex_unlock( & dataMutex);
+
+    char logMessage[256];
+    snprintf(logMessage, sizeof(logMessage), "Room created: ID=%d, Number=%d, Floor=%d, Branch ID=%d", room -> roomID, room -> number, room -> floor, room -> branchID);
+    logData(logMessage);
+}
+
+void readRoom(int roomID) {
+    pthread_mutex_lock( & dataMutex);
+
+    RoomNode * current = roomHead;
+    while (current != NULL) {
+        if (current -> data.roomID == roomID) {
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Room read: ID=%d, Number=%d, Floor=%d, Branch ID=%d", current -> data.roomID, current -> data.number, current -> data.floor, current -> data.branchID);
+            logData(logMessage);
+            return;
         }
-
-        if (idMatch) {
-            void *temp = *curr; // Store the node to be deleted.
-            *curr = *((void **)*curr); // Update the link to bypass the deleted node.
-            free(temp); // Free the memory of the deleted node.
-            break; // Exit the loop after deletion.
-        } else {
-            curr = (void **)*curr; // Move to the next node.
-        }
+        current = current -> next;
     }
 
-    pthread_mutex_unlock(&entityMutexes[entityType - 1]);
+    pthread_mutex_unlock( & dataMutex);
+    logData("Room not found for read operation.");
+}
+
+void updateRoom(int roomID, Room * updatedRoom) {
+    pthread_mutex_lock( & dataMutex);
+
+    RoomNode * current = roomHead;
+    while (current != NULL) {
+        if (current -> data.roomID == roomID) {
+            current -> data = * updatedRoom;
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Room updated: ID=%d, Number=%d, Floor=%d, Branch ID=%d", updatedRoom -> roomID, updatedRoom -> number, updatedRoom -> floor, updatedRoom -> branchID);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Room not found for update operation.");
+}
+
+void deleteRoom(int roomID) {
+    pthread_mutex_lock( & dataMutex);
+
+    RoomNode ** current = & roomHead, * temp;
+    while ( * current != NULL) {
+        if (( * current) -> data.roomID == roomID) {
+            temp = * current;
+            * current = ( * current) -> next;
+            free(temp);
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Room deleted: ID=%d", roomID);
+            logData(logMessage);
+            return;
+        }
+        current = & (( * current) -> next);
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Room not found for delete operation.");
+}
+
+//Customer
+void createCustomer(Customer * customer) {
+    pthread_mutex_lock( & dataMutex);
+
+    CustomerNode * newNode = (CustomerNode * ) malloc(sizeof(CustomerNode));
+    if (newNode == NULL) {
+        pthread_mutex_unlock( & dataMutex);
+        logData("Error: Failed to allocate memory for new Customer.");
+        return;
+    }
+    newNode -> data = * customer;
+    newNode -> next = customerHead;
+    customerHead = newNode;
+
+    pthread_mutex_unlock( & dataMutex);
+
+    char logMessage[256];
+    snprintf(logMessage, sizeof(logMessage), "Customer created: ID=%d, Name=%s", customer -> customerID, customer -> name);
+    logData(logMessage);
+}
+
+void readCustomer(int customerID) {
+    pthread_mutex_lock( & dataMutex);
+
+    CustomerNode * current = customerHead;
+    while (current != NULL) {
+        if (current -> data.customerID == customerID) {
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Customer read: ID=%d, Name=%s", current -> data.customerID, current -> data.name);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Customer not found for read operation.");
+}
+
+void updateCustomer(int customerID, Customer * updatedCustomer) {
+    pthread_mutex_lock( & dataMutex);
+
+    CustomerNode * current = customerHead;
+    while (current != NULL) {
+        if (current -> data.customerID == customerID) {
+            current -> data = * updatedCustomer;
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Customer updated: ID=%d, Name=%s", updatedCustomer -> customerID, updatedCustomer -> name);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Customer not found for update operation.");
+}
+
+void deleteCustomer(int customerID) {
+    pthread_mutex_lock( & dataMutex);
+
+    CustomerNode ** current = & customerHead, * temp;
+    while ( * current != NULL) {
+        if (( * current) -> data.customerID == customerID) {
+            temp = * current;
+            * current = ( * current) -> next;
+            free(temp);
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Customer deleted: ID=%d", customerID);
+            logData(logMessage);
+            return;
+        }
+        current = & (( * current) -> next);
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Customer not found for delete operation.");
+}
+
+//Cleaning crew
+void createCleaningCrew(CleaningCrew * crew) {
+    pthread_mutex_lock( & dataMutex);
+
+    CleaningCrewNode * newNode = (CleaningCrewNode * ) malloc(sizeof(CleaningCrewNode));
+    if (newNode == NULL) {
+        pthread_mutex_unlock( & dataMutex);
+        logData("Error: Failed to allocate memory for new Cleaning Crew.");
+        return;
+    }
+    newNode -> data = * crew;
+    newNode -> next = cleaningCrewHead;
+    cleaningCrewHead = newNode;
+
+    pthread_mutex_unlock( & dataMutex);
+
+    char logMessage[256];
+    snprintf(logMessage, sizeof(logMessage), "Cleaning Crew created: ID=%d, Employees=%s", crew -> cleaningCrewID, crew -> employees);
+    logData(logMessage);
+}
+
+void readCleaningCrew(int cleaningCrewID) {
+    pthread_mutex_lock( & dataMutex);
+
+    CleaningCrewNode * current = cleaningCrewHead;
+    while (current != NULL) {
+        if (current -> data.cleaningCrewID == cleaningCrewID) {
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Cleaning Crew read: ID=%d, Employees=%s", current -> data.cleaningCrewID, current -> data.employees);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Cleaning Crew not found for read operation.");
+}
+
+void updateCleaningCrew(int cleaningCrewID, CleaningCrew * updatedCrew) {
+    pthread_mutex_lock( & dataMutex);
+
+    CleaningCrewNode * current = cleaningCrewHead;
+    while (current != NULL) {
+        if (current -> data.cleaningCrewID == cleaningCrewID) {
+            current -> data = * updatedCrew;
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Cleaning Crew updated: ID=%d, Employees=%s", updatedCrew -> cleaningCrewID, updatedCrew -> employees);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Cleaning Crew not found for update operation.");
+}
+
+void deleteCleaningCrew(int cleaningCrewID) {
+    pthread_mutex_lock( & dataMutex);
+
+    CleaningCrewNode ** current = & cleaningCrewHead, * temp;
+    while ( * current != NULL) {
+        if (( * current) -> data.cleaningCrewID == cleaningCrewID) {
+            temp = * current;
+            * current = ( * current) -> next;
+            free(temp);
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Cleaning Crew deleted: ID=%d", cleaningCrewID);
+            logData(logMessage);
+            return;
+        }
+        current = & (( * current) -> next);
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Cleaning Crew not found for delete operation.");
+}
+
+//Booking
+void createBooking(Booking * booking) {
+    pthread_mutex_lock( & dataMutex);
+
+    BookingNode * newNode = (BookingNode * ) malloc(sizeof(BookingNode));
+    if (newNode == NULL) {
+        pthread_mutex_unlock( & dataMutex);
+        logData("Error: Failed to allocate memory for new Booking.");
+        return;
+    }
+    newNode -> data = * booking;
+    newNode -> next = bookingHead;
+    bookingHead = newNode;
+
+    pthread_mutex_unlock( & dataMutex);
+
+    char logMessage[256];
+    snprintf(logMessage, sizeof(logMessage), "Booking created: ID=%d, Date=%s", booking -> bookingID, booking -> date);
+    logData(logMessage);
+}
+
+void readBooking(int bookingID) {
+    pthread_mutex_lock( & dataMutex);
+
+    BookingNode * current = bookingHead;
+    while (current != NULL) {
+        if (current -> data.bookingID == bookingID) {
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Booking read: ID=%d, Date=%s", current -> data.bookingID, current -> data.date);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Booking not found for read operation.");
+}
+
+void updateBooking(int bookingID, Booking * updatedBooking) {
+    pthread_mutex_lock( & dataMutex);
+
+    BookingNode * current = bookingHead;
+    while (current != NULL) {
+        if (current -> data.bookingID == bookingID) {
+            current -> data = * updatedBooking;
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Booking updated: ID=%d, Date=%s", updatedBooking -> bookingID, updatedBooking -> date);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Booking not found for update operation.");
+}
+
+void deleteBooking(int bookingID) {
+    pthread_mutex_lock( & dataMutex);
+
+    BookingNode ** current = & bookingHead, * temp;
+    while ( * current != NULL) {
+        if (( * current) -> data.bookingID == bookingID) {
+            temp = * current;
+            * current = ( * current) -> next;
+            free(temp);
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Booking deleted: ID=%d", bookingID);
+            logData(logMessage);
+            return;
+        }
+        current = & (( * current) -> next);
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Booking not found for delete operation.");
+}
+
+//Employee
+void createEmployee(Employee * employee) {
+    pthread_mutex_lock( & dataMutex);
+
+    EmployeeNode * newNode = (EmployeeNode * ) malloc(sizeof(EmployeeNode));
+    if (newNode == NULL) {
+        pthread_mutex_unlock( & dataMutex);
+        logData("Error: Failed to allocate memory for new Employee.");
+        return;
+    }
+    newNode -> data = * employee;
+    newNode -> next = employeeHead;
+    employeeHead = newNode;
+
+    pthread_mutex_unlock( & dataMutex);
+
+    char logMessage[256];
+    snprintf(logMessage, sizeof(logMessage), "Employee created: ID=%d, Name=%s", employee -> employeeID, employee -> name);
+    logData(logMessage);
+}
+
+void readEmployee(int employeeID) {
+    pthread_mutex_lock( & dataMutex);
+
+    EmployeeNode * current = employeeHead;
+    while (current != NULL) {
+        if (current -> data.employeeID == employeeID) {
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Employee read: ID=%d, Name=%s", current -> data.employeeID, current -> data.name);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Employee not found for read operation.");
+}
+
+void updateEmployee(int employeeID, Employee * updatedEmployee) {
+    pthread_mutex_lock( & dataMutex);
+
+    EmployeeNode * current = employeeHead;
+    while (current != NULL) {
+        if (current -> data.employeeID == employeeID) {
+            current -> data = * updatedEmployee;
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Employee updated: ID=%d, Name=%s", updatedEmployee -> employeeID, updatedEmployee -> name);
+            logData(logMessage);
+            return;
+        }
+        current = current -> next;
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Employee not found for update operation.");
+}
+
+void deleteEmployee(int employeeID) {
+    pthread_mutex_lock( & dataMutex);
+
+    EmployeeNode ** current = & employeeHead, * temp;
+    while ( * current != NULL) {
+        if (( * current) -> data.employeeID == employeeID) {
+            temp = * current;
+            * current = ( * current) -> next;
+            free(temp);
+
+            pthread_mutex_unlock( & dataMutex);
+
+            char logMessage[256];
+            snprintf(logMessage, sizeof(logMessage), "Employee deleted: ID=%d", employeeID);
+            logData(logMessage);
+            return;
+        }
+        current = & (( * current) -> next);
+    }
+
+    pthread_mutex_unlock( & dataMutex);
+    logData("Employee not found for delete operation.");
+}
+
+//Phone
+void createPhone(Phone * phone) {
+    pthread_mutex_lock( & dataMutex);
+
+    PhoneNode * newNode = (PhoneNode * ) malloc(sizeof(PhoneNode));
+    if (newNode == NULL) {
+        printf("Error creating a new phone.\n");
+    } else {
+        newNode -> data = * phone;
+        newNode -> next = phoneHead;
+        phoneHead = newNode;
+    }
+
+    pthread_mutex_lock( & dataMutex);
+}
+
+void readPhone(int phoneID) {
+    pthread_mutex_lock( & dataMutex);
+
+    PhoneNode * current = phoneHead;
+    while (current != NULL) {
+        if (current -> data.phoneID == phoneID) {
+            printf("ID: %d, Number: %s, Customer SSN: %s\n",
+                current -> data.phoneID, current -> data.number, current -> data.customerSSN);
+            pthread_mutex_lock( & dataMutex);
+            return;
+        }
+        current = current -> next;
+    }
+    printf("Phone not found.\n");
+
+    pthread_mutex_lock( & dataMutex);
+}
+
+void updatePhone(int phoneID, Phone * updatedPhone) {
+    pthread_mutex_lock( & dataMutex);
+
+    PhoneNode * current = phoneHead;
+    while (current != NULL) {
+        if (current -> data.phoneID == phoneID) {
+            current -> data = * updatedPhone;
+            pthread_mutex_lock( & dataMutex);
+            return;
+        }
+        current = current -> next;
+    }
+    printf("Phone not found.\n");
+
+    pthread_mutex_lock( & dataMutex);
+}
+
+void deletePhone(int phoneID) {
+    pthread_mutex_lock( & dataMutex);
+
+    PhoneNode ** current = & phoneHead;
+    while ( * current != NULL) {
+        PhoneNode * entry = * current;
+        if (entry -> data.phoneID == phoneID) {
+            * current = entry -> next;
+            free(entry);
+            pthread_mutex_lock( & dataMutex);
+            return;
+        }
+        current = & ( * current) -> next;
+    }
+    printf("Phone not found.\n");
+
+    pthread_mutex_lock( & dataMutex);
+}
+
+void trimNewline(char* string) {
+    int length = strlen(string);
+    if(length > 0 && string[length-1] == '\n') {
+        string[length-1] = '\0';
+    }
 }
 
 
-//2 level menus for user input
+void handleOperation(int entityChoice, int operationChoice) {
+  char inputBuffer[256];
+
+  switch (entityChoice) {
+    case ENTITY_BRANCH:
+    if (operationChoice == OPERATION_CREATE) {
+        Branch branch = {0};
+
+        printf("Enter Branch ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        branch.branchID = atoi(inputBuffer);
+
+        printf("Enter Branch Name: ");
+        fgets(branch.name, sizeof(branch.name), stdin);
+        trimNewline(branch.name);
+
+        printf("Enter Branch Phone: ");
+        fgets(branch.phone, sizeof(branch.phone), stdin);
+        trimNewline(branch.phone);
+
+        printf("Enter Branch Address: ");
+        fgets(branch.address, sizeof(branch.address), stdin);
+        trimNewline(branch.address);
+
+        printf("Enter Number of Rooms: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        branch.numberOfRooms = atoi(inputBuffer);
+
+        createBranch(&branch);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Branch ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readBranch(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        Branch updatedBranch = {0};
+        int id;
+
+        printf("Enter Branch ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Branch Name: ");
+        fgets(updatedBranch.name, sizeof(updatedBranch.name), stdin);
+        trimNewline(updatedBranch.name);
+
+        printf("Enter new Branch Phone: ");
+        fgets(updatedBranch.phone, sizeof(updatedBranch.phone), stdin);
+        trimNewline(updatedBranch.phone);
+
+        printf("Enter new Branch Address: ");
+        fgets(updatedBranch.address, sizeof(updatedBranch.address), stdin);
+        trimNewline(updatedBranch.address);
+
+        printf("Enter new Number of Rooms: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedBranch.numberOfRooms = atoi(inputBuffer);
+
+        updateBranch(id, &updatedBranch);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Branch ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deleteBranch(id);
+    }
+    break;
+    
+    case ENTITY_ROOM:
+    if (operationChoice == OPERATION_CREATE) {
+        Room room = {0};
+
+        printf("Enter Room ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        room.roomID = atoi(inputBuffer);
+
+        printf("Enter Room Number: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        room.number = atoi(inputBuffer);
+
+        printf("Enter Room Floor: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        room.floor = atoi(inputBuffer);
+
+        printf("Enter Cleaning Crew ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        room.cleaningCrewID = atoi(inputBuffer);
+
+        printf("Enter Branch ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        room.branchID = atoi(inputBuffer);
+
+        createRoom(&room);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Room ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readRoom(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        Room updatedRoom = {0};
+        int id;
+
+        printf("Enter Room ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Room Number: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedRoom.number = atoi(inputBuffer);
+
+        printf("Enter new Room Floor: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedRoom.floor = atoi(inputBuffer);
+
+        printf("Enter new Cleaning Crew ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedRoom.cleaningCrewID = atoi(inputBuffer);
+
+        printf("Enter new Branch ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedRoom.branchID = atoi(inputBuffer);
+
+        updateRoom(id, &updatedRoom);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Room ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deleteRoom(id);
+    }
+    break;
+
+    case ENTITY_CUSTOMER:
+    if (operationChoice == OPERATION_CREATE) {
+        Customer customer = {0};
+
+        printf("Enter Customer ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        customer.customerID = atoi(inputBuffer);
+
+        printf("Enter Customer SSN: ");
+        fgets(customer.SSN, sizeof(customer.SSN), stdin);
+        trimNewline(customer.SSN);
+
+        printf("Enter Customer Name: ");
+        fgets(customer.name, sizeof(customer.name), stdin);
+        trimNewline(customer.name);
+
+        printf("Enter Customer Date of Birth: ");
+        fgets(customer.dateOfBirth, sizeof(customer.dateOfBirth), stdin);
+        trimNewline(customer.dateOfBirth);
+
+        printf("Enter Customer Email: ");
+        fgets(customer.email, sizeof(customer.email), stdin);
+        trimNewline(customer.email);
+
+        printf("Enter Customer Booking ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        customer.bookingID = atoi(inputBuffer);
+
+        printf("Enter Customer Phone Number: ");
+        fgets(customer.phone, sizeof(customer.phone), stdin);
+        trimNewline(customer.phone);
+
+        createCustomer(&customer);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Customer ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readCustomer(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        Customer updatedCustomer = {0};
+        int id;
+
+        printf("Enter Customer ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Customer SSN: ");
+        fgets(updatedCustomer.SSN, sizeof(updatedCustomer.SSN), stdin);
+        trimNewline(updatedCustomer.SSN);
+
+        printf("Enter new Customer Name: ");
+        fgets(updatedCustomer.name, sizeof(updatedCustomer.name), stdin);
+        trimNewline(updatedCustomer.name);
+
+        printf("Enter new Customer Date of Birth: ");
+        fgets(updatedCustomer.dateOfBirth, sizeof(updatedCustomer.dateOfBirth), stdin);
+        trimNewline(updatedCustomer.dateOfBirth);
+
+        printf("Enter new Customer Email: ");
+        fgets(updatedCustomer.email, sizeof(updatedCustomer.email), stdin);
+        trimNewline(updatedCustomer.email);
+
+        printf("Enter new Booking ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedCustomer.bookingID = atoi(inputBuffer);
+
+        printf("Enter new Customer Phone Number: ");
+        fgets(updatedCustomer.phone, sizeof(updatedCustomer.phone), stdin);
+        trimNewline(updatedCustomer.phone);
+
+        updateCustomer(id, &updatedCustomer);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Customer ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deleteCustomer(id);
+    }
+    break;
+    
+    case ENTITY_CLEANING_CREW:
+    if (operationChoice == OPERATION_CREATE) {
+        CleaningCrew crew = {0};
+
+        printf("Enter Cleaning Crew ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        crew.cleaningCrewID = atoi(inputBuffer);
+
+        printf("Enter Cleaning Crew Employees: ");
+        fgets(crew.employees, sizeof(crew.employees), stdin);
+        trimNewline(crew.employees);
+
+        printf("Enter Cleaning Crew Status: ");
+        fgets(crew.status, sizeof(crew.status), stdin);
+        trimNewline(crew.status);
+
+        printf("Enter Room ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        crew.roomID = atoi(inputBuffer);
+
+        createCleaningCrew(&crew);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Cleaning Crew ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readCleaningCrew(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        CleaningCrew updatedCrew = {0};
+        int id;
+
+        printf("Enter Cleaning Crew ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Cleaning Crew Employees: ");
+        fgets(updatedCrew.employees, sizeof(updatedCrew.employees), stdin);
+        trimNewline(updatedCrew.employees);
+
+        printf("Enter new Cleaning Crew Status: ");
+        fgets(updatedCrew.status, sizeof(updatedCrew.status), stdin);
+        trimNewline(updatedCrew.status);
+
+        printf("Enter new Room ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedCrew.roomID = atoi(inputBuffer);
+
+        updateCleaningCrew(id, &updatedCrew);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Cleaning Crew ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deleteCleaningCrew(id);
+    }
+    break;
+
+    case ENTITY_BOOKING:
+    if (operationChoice == OPERATION_CREATE) {
+        Booking booking = {0};
+
+        printf("Enter Booking ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        booking.bookingID = atoi(inputBuffer);
+
+        printf("Enter Booking Date: ");
+        fgets(booking.date, sizeof(booking.date), stdin);
+        trimNewline(booking.date);
+
+        printf("Enter Booking Time: ");
+        fgets(booking.time, sizeof(booking.time), stdin);
+        trimNewline(booking.time);
+
+        printf("Enter Customer SSN: ");
+        fgets(booking.customerSSN, sizeof(booking.customerSSN), stdin);
+        trimNewline(booking.customerSSN);
+
+        printf("Enter Registrar ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        booking.registrarID = atoi(inputBuffer);
+
+        printf("Enter Room Number: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        booking.roomNumber = atoi(inputBuffer);
+
+        createBooking(&booking);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Booking ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readBooking(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        Booking updatedBooking = {0};
+        int id;
+
+        printf("Enter Booking ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Booking Date: ");
+        fgets(updatedBooking.date, sizeof(updatedBooking.date), stdin);
+        trimNewline(updatedBooking.date);
+
+        printf("Enter new Booking Time: ");
+        fgets(updatedBooking.time, sizeof(updatedBooking.time), stdin);
+        trimNewline(updatedBooking.time);
+
+        printf("Enter new Customer SSN: ");
+        fgets(updatedBooking.customerSSN, sizeof(updatedBooking.customerSSN), stdin);
+        trimNewline(updatedBooking.customerSSN);
+
+        printf("Enter new Registrar ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedBooking.registrarID = atoi(inputBuffer);
+
+        printf("Enter new Room Number: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedBooking.roomNumber = atoi(inputBuffer);
+
+        updateBooking(id, &updatedBooking);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Booking ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deleteBooking(id);
+    }
+    break;
+    
+    case ENTITY_EMPLOYEE:
+    if (operationChoice == OPERATION_CREATE) {
+        Employee employee = {0};
+
+        printf("Enter Employee ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        employee.employeeID = atoi(inputBuffer);
+
+        printf("Enter Employee Name: ");
+        fgets(employee.name, sizeof(employee.name), stdin);
+        trimNewline(employee.name);
+
+        printf("Enter Employee Password: ");
+        fgets(employee.password, sizeof(employee.password), stdin);
+        trimNewline(employee.password);
+
+        printf("Enter Employee Email: ");
+        fgets(employee.email, sizeof(employee.email), stdin);
+        trimNewline(employee.email);
+
+        printf("Enter Employee Salary: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        employee.salary = atof(inputBuffer);
+
+        printf("Enter Employee Branch ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        employee.branchID = atoi(inputBuffer);
+
+        printf("Enter Employee Position: ");
+        fgets(employee.position, sizeof(employee.position), stdin);
+        trimNewline(employee.position);
+
+        createEmployee(&employee);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Employee ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readEmployee(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        Employee updatedEmployee = {0};
+        int id;
+
+        printf("Enter Employee ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Employee Name: ");
+        fgets(updatedEmployee.name, sizeof(updatedEmployee.name), stdin);
+        trimNewline(updatedEmployee.name);
+
+        printf("Enter new Employee Password: ");
+        fgets(updatedEmployee.password, sizeof(updatedEmployee.password), stdin);
+        trimNewline(updatedEmployee.password);
+
+        printf("Enter new Employee Email: ");
+        fgets(updatedEmployee.email, sizeof(updatedEmployee.email), stdin);
+        trimNewline(updatedEmployee.email);
+
+        printf("Enter new Employee Salary: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedEmployee.salary = atof(inputBuffer);
+
+        printf("Enter new Employee Branch ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        updatedEmployee.branchID = atoi(inputBuffer);
+
+        printf("Enter new Employee Position: ");
+        fgets(updatedEmployee.position, sizeof(updatedEmployee.position), stdin);
+        trimNewline(updatedEmployee.position);
+
+        updateEmployee(id, &updatedEmployee);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Employee ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deleteEmployee(id);
+    }
+    break;
+    
+    case ENTITY_PHONE:
+    if (operationChoice == OPERATION_CREATE) {
+        Phone phone = {0};
+
+        printf("Enter Phone ID: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        phone.phoneID = atoi(inputBuffer);
+
+        printf("Enter Phone Number: ");
+        fgets(phone.number, sizeof(phone.number), stdin);
+        trimNewline(phone.number);
+
+        printf("Enter Customer SSN: ");
+        fgets(phone.customerSSN, sizeof(phone.customerSSN), stdin);
+        trimNewline(phone.customerSSN);
+
+        createPhone(&phone);
+    } else if (operationChoice == OPERATION_READ) {
+        int id;
+        printf("Enter Phone ID to read: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        readPhone(id);
+    } else if (operationChoice == OPERATION_UPDATE) {
+        Phone updatedPhone = {0};
+        int id;
+
+        printf("Enter Phone ID to update: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        printf("Enter new Phone Number: ");
+        fgets(updatedPhone.number, sizeof(updatedPhone.number), stdin);
+        trimNewline(updatedPhone.number);
+
+        printf("Enter new Customer SSN: ");
+        fgets(updatedPhone.customerSSN, sizeof(updatedPhone.customerSSN), stdin);
+        trimNewline(updatedPhone.customerSSN);
+
+        updatePhone(id, &updatedPhone);
+    } else if (operationChoice == OPERATION_DELETE) {
+        int id;
+        printf("Enter Phone ID to delete: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        id = atoi(inputBuffer);
+
+        deletePhone(id);
+    }
+    break;
+    
+    default:
+    printf("Invalid entity choice.\n");
+    break;
+  }
+
+}
+
 void displayEntityMenu() {
-    printf("Select an entity:\n");
+    printf("\nSelect an entity:\n");
     printf("1. Branch\n");
     printf("2. Room\n");
     printf("3. Customer\n");
@@ -709,11 +1313,11 @@ void displayEntityMenu() {
     printf("5. Booking\n");
     printf("6. Employee\n");
     printf("7. Phone\n");
-    printf("8. Back\n");
+    printf("8. Exit\n");
 }
 
 void displayCRUDMenu() {
-    printf("Select an operation:\n");
+    printf("\nSelect an operation:\n");
     printf("1. Create\n");
     printf("2. Read\n");
     printf("3. Update\n");
@@ -721,270 +1325,97 @@ void displayCRUDMenu() {
     printf("5. Back\n");
 }
 
-typedef struct ThreadArgs {
-    pthread_mutex_t *mutexes;
-    int entityType;
-    int operationType;
-    void **heads;
-} ThreadArgs;
-
-//thread function that handles concurrent access to the program using mutexes
-void *threadFunction(void *args) {
-    ThreadArgs *threadArgs = (ThreadArgs *)args;
-    int operationChoice, entityChoice, searchID, c;
-
-    while (1) {
-        printf("\nChoose operation: 1. Create 2. Read 3. Update 4. Delete 5. Exit\n");
-        scanf("%d", &operationChoice);
-        while ((c = getchar()) != '\n' && c != EOF) { } // Clear input buffer
-
-        if (operationChoice == 5) {
-            break;
-        }
-
-        printf("\nChoose entity type: 1. Branch 2. Room 3. Customer 4. Cleaning Crew 5. Booking 6. Employee 7. Phone\n");
-        scanf("%d", &entityChoice);
-        while ((c = getchar()) != '\n' && c != EOF) { } // Clear input buffer
-
-        entityChoice--;
-        
-        if (operationChoice == 3 || operationChoice == 4) { // For Update or Delete, require ID
-            printf("Enter ID for the operation: ");
-            scanf("%d", &searchID);
-            while ((c = getchar()) != '\n' && c != EOF) { } // Clear input buffer
-        }
-
-        // Execute the selected operation
-        switch (operationChoice) {
-            case 1: // Create
-                createRecord(&(threadArgs->heads[entityChoice]), entityChoice);
-                break;
-            case 2: // Read
-                readRecord(threadArgs->heads[entityChoice], entityChoice);
-                break;
-            case 3: // Update
-                updateRecord(&(threadArgs->heads[entityChoice]), entityChoice, searchID);
-                break;
-            case 4: // Delete
-                deleteRecord(&(threadArgs->heads[entityChoice]), entityChoice, searchID);
-                break;
-            default:
-                printf("Invalid operation choice.\n");
-                break;
-        }
-    }
-
-    return NULL;
+void initializeApplication() {
+    pthread_mutex_init( & dataMutex, NULL);
+    pthread_mutex_init( & logMutex, NULL);
+    printf("Application initialized successfully.\n");
 }
 
+void cleanupResources() {
+    pthread_mutex_destroy( & dataMutex);
+    pthread_mutex_destroy( & logMutex);
 
+    BranchNode * branchCurrent;
+    while (branchHead != NULL) {
+        branchCurrent = branchHead;
+        branchHead = branchHead -> next;
+        free(branchCurrent);
+    }
 
-//clean up functions for each entity for exit
-void freeBranchLinkedList(BranchNode *head) {
-    BranchNode *current = head;
-    while (current != NULL) {
-        BranchNode *temp = current;
-        current = current->next;
-        free(temp);
+    RoomNode * roomCurrent;
+    while (roomHead != NULL) {
+        roomCurrent = roomHead;
+        roomHead = roomHead -> next;
+        free(roomCurrent);
+    }
+
+    CustomerNode * customerCurrent;
+    while (customerHead != NULL) {
+        customerCurrent = customerHead;
+        customerHead = customerHead -> next;
+        free(customerCurrent);
+    }
+
+    CleaningCrewNode * cleaningCrewCurrent;
+    while (cleaningCrewHead != NULL) {
+        cleaningCrewCurrent = cleaningCrewHead;
+        cleaningCrewHead = cleaningCrewHead -> next;
+        free(cleaningCrewCurrent);
+    }
+
+    BookingNode * bookingCurrent;
+    while (bookingHead != NULL) {
+        bookingCurrent = bookingHead;
+        bookingHead = bookingHead -> next;
+        free(bookingCurrent);
+    }
+
+    EmployeeNode * employeeCurrent;
+    while (employeeHead != NULL) {
+        employeeCurrent = employeeHead;
+        employeeHead = employeeHead -> next;
+        free(employeeCurrent);
+    }
+
+    PhoneNode * phoneCurrent;
+    while (phoneHead != NULL) {
+        phoneCurrent = phoneHead;
+        phoneHead = phoneHead -> next;
+        free(phoneCurrent);
     }
 }
 
-void freeRoomLinkedList(RoomNode *head) {
-    RoomNode *current = head;
-    while (current != NULL) {
-        RoomNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-}
-
-void freeCustomerLinkedList(CustomerNode *head) {
-    CustomerNode *current = head;
-    while (current != NULL) {
-        CustomerNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-}
-
-void freeCleaningCrewLinkedList(CleaningCrewNode *head) {
-    CleaningCrewNode *current = head;
-    while (current != NULL) {
-        CleaningCrewNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-}
-
-void freeBookingLinkedList(BookingNode *head) {
-    BookingNode *current = head;
-    while (current != NULL) {
-        BookingNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-}
-
-void freeEmployeeLinkedList(EmployeeNode *head) {
-    EmployeeNode *current = head;
-    while (current != NULL) {
-        EmployeeNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-}
-
-void freePhoneLinkedList(PhoneNode *head) {
-    PhoneNode *current = head;
-    while (current != NULL) {
-        PhoneNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-}
-
-//function to log operations to a file
-void logOperation(const char* operation) {
-    pthread_mutex_lock(&fileMutex);
-    FILE *logFile = fopen(logFilePath, "a");
-    if (logFile) {
-        fprintf(logFile, "%s\n", operation);
-        fclose(logFile);
-    } else {
-        perror("Failed to open log file");
-    }
-    pthread_mutex_unlock(&fileMutex);
-}
-
-//this function handels user interaction with the inner most functionalities of the proram
-void* userInteractionThread(void* arg) {
-    ThreadArgs *args = (ThreadArgs*) arg;
-    int operationChoice, entityChoice, idToActOn;
-    EntityType selectedEntityType;
-    void *selectedHead = NULL;
-    int c; // For clearing the input buffer
-
-    // Loop until the user decides to exit
-    while (1) {
-        displayCRUDMenu();
-        scanf("%d", &operationChoice);
-
-        // Clear the input buffer
-        while ((c = getchar()) != '\n' && c != EOF) {}
-
-        // Exit condition
-        if (operationChoice == 5) break;
-
-        displayEntityMenu();
-        scanf("%d", &entityChoice);
-
-        // Clear the input buffer
-        while ((c = getchar()) != '\n' && c != EOF) {}
-
-        selectedEntityType = entityChoice - 1; // Adjusting for 0-based indexing
-
-        // Ensure the selection is valid
-        if (selectedEntityType < 0 || selectedEntityType >= ENTITY_COUNT) {
-            printf("Invalid entity type selected.\n");
-            continue;
-        }
-
-        selectedHead = args->heads[selectedEntityType];
-
-        // Perform the selected operation
-        switch (operationChoice) {
-            case 1: // Create
-                createRecord(&selectedHead, selectedEntityType);
-                break;
-            case 2: // Read
-                printf("Enter ID to read: ");
-                scanf("%d", &idToActOn);
-                // Clear the input buffer
-                while ((c = getchar()) != '\n' && c != EOF) {}
-                readRecord(selectedHead, selectedEntityType);
-                break;
-            case 3: // Update
-                printf("Enter ID to update: ");
-                scanf("%d", &idToActOn);
-                // Clear the input buffer
-                while ((c = getchar()) != '\n' && c != EOF) {}
-                updateRecord(&selectedHead, selectedEntityType, idToActOn);
-                break;
-            case 4: // Delete
-                printf("Enter ID to delete: ");
-                scanf("%d", &idToActOn);
-                // Clear the input buffer
-                while ((c = getchar()) != '\n' && c != EOF) {}
-                deleteRecord(&selectedHead, selectedEntityType, idToActOn);
-                break;
-            default:
-                printf("Invalid operation selected.\n");
-                break;
-        }
-    }
-
-    pthread_exit(NULL);
+//this function prevents input skips
+void flushInput() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) { }
 }
 
 int main() {
-    pthread_mutex_t mutexes[ENTITY_COUNT];
-    for (int i = 0; i < ENTITY_COUNT; i++) {
-        pthread_mutex_init(&mutexes[i], NULL);
-    }
+    initializeApplication();
 
-    // Initialize pointers to head of each entity list
-    void *heads[ENTITY_COUNT] = {
-        &branchHead, &roomHead, &customerHead,
-        &cleaningCrewHead, &bookingHead, &employeeHead, &phoneHead
-    };
+    char inputBuffer[100]; // Buffer to hold input strings
+    int entityChoice, operationChoice;
 
-    // Main program loop
-    while (1) {
-        int entityChoice = 0;
-        int operationChoice = 0;
-        int c; // Variable for clearing input buffer
-
+    do {
         displayEntityMenu();
-        printf("Enter your choice (or 8 to exit): ");
-        scanf("%d", &entityChoice);
+        printf("Enter your choice: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        entityChoice = atoi(inputBuffer); // Convert input to integer
 
-        // Clear the input buffer after reading choice
-        while ((c = getchar()) != '\n' && c != EOF) {}
-
-        if (entityChoice == 8) break; // Exit program
+        if (entityChoice == 8) break; // Exit condition
 
         displayCRUDMenu();
-        printf("Enter your choice (or 5 to go back): ");
-        scanf("%d", &operationChoice);
+        printf("Enter your operation choice: ");
+        fgets(inputBuffer, sizeof(inputBuffer), stdin);
+        operationChoice = atoi(inputBuffer); // Convert input to integer
 
-        // Clear the input buffer after reading choice
-        while ((c = getchar()) != '\n' && c != EOF) {}
+        if (operationChoice == 5) continue; // Go back to the main menu
 
-        if (operationChoice == 5) continue; // Go back to the entity selection
+        handleOperation(entityChoice, operationChoice);
 
-        ThreadArgs threadArgs = {
-            .mutexes = mutexes,
-            .entityType = entityChoice - 1, // Adjust for 0-based indexing in heads array
-            .heads = heads
-        };
+    } while (entityChoice != 8);
 
-        pthread_t tid;
-        pthread_create(&tid, NULL, userInteractionThread, (void*)&threadArgs);
-        pthread_join(tid, NULL); // Wait for the thread to complete its operation
-    }
-
-    // Cleanup
-    for (int i = 0; i < ENTITY_COUNT; i++) {
-        pthread_mutex_destroy(&mutexes[i]);
-    }
-
-    freeBranchLinkedList(branchHead);
-    freeRoomLinkedList(roomHead);
-    freeCustomerLinkedList(customerHead);
-    freeCleaningCrewLinkedList(cleaningCrewHead);
-    freeBookingLinkedList(bookingHead);
-    freeEmployeeLinkedList(employeeHead);
-    freePhoneLinkedList(phoneHead);
-
+    cleanupResources();
     return 0;
 }
